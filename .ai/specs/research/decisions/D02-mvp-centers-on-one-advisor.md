@@ -1,0 +1,7 @@
+# D02 — MVP centers on one external advisor's data, not generic reference strategies
+
+- Date, owner: 2026-10-14, product owner (self)
+- Context and the options weighed: `preliminary_spec.md`'s own "MVP" section (14 items) proposed starting with EODHD market data plus hardcoded reference strategies (momentum, trend-following, low-volatility, multi-factor ranking, sector rotation) and a general backtesting engine. The agent proposed an alternative: start instead with the product owner's actual, already-available data source — a daily PDF report from one external investment advisor — since that is real material on hand, not a hypothetical strategy.
+- Decision and why: agreed. The MVP ingests and tracks the one external advisor's daily PDF reports (portfolio composition, decisions/comments, 7-point sentiment rating per market, "3 companies for 3 months" sub-portfolio, weekly "growth stocks of the week" list) and tracks his performance against a benchmark. The generic reference-strategy backtesting engine from `preliminary_spec.md` is deferred to Later (see D03). This was an accepted agent recommendation, not a pre-existing team decision.
+- Consequences, and what would make us revisit it: MVP value depends entirely on being able to reliably extract structured data from the advisor's PDFs (see Riskiest assumption A03 in the product brief). Revisit if PDF extraction proves unreliable, or if the product owner wants to validate the general backtesting engine independently of the advisor data.
+- Status: active
