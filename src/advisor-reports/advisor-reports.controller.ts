@@ -14,6 +14,8 @@ import { AdvisorReportParseResult } from './advisor-report.types';
 import { AdvisorReportParserService } from './advisor-report-parser.service';
 import { PdfTextExtractorService } from './pdf-text-extractor.service';
 
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 @Controller('admin/advisor-reports')
 @UseGuards(BasicAuthGuard)
 export class AdvisorReportsController {
@@ -24,7 +26,9 @@ export class AdvisorReportsController {
 
   @Post('extract')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES } }),
+  )
   async extract(
     @UploadedFile() file?: Express.Multer.File,
   ): Promise<AdvisorReportParseResult> {

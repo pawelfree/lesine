@@ -94,4 +94,99 @@ describe('PdfTextExtractorService', () => {
 
     expect(text).toBe('First\n\nSecond');
   });
+
+  it('does not treat "endstream" as a second, spurious stream start', async () => {
+    // "endstream" contains "stream" as a substring. Without the negative
+    // lookbehind in STREAM_START, the first object's closing "endstream"
+    // is itself read as a second stream start, whose body then spans into
+    // the next object — duplicating (or corrupting) the real text.
+    const buffer = Buffer.from(
+      '%PDF-1.4\n' +
+        '1 0 obj\n<< /Length 1 >>\nstream\n(First) Tj\nendstream\nendobj\n' +
+        '2 0 obj\n<< /Length 1 >>\nstream\n(Second) Tj\nendstream\nendobj\n',
+      'latin1',
+    );
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('First\n\nSecond');
+  });
+
+  it('skips a decoded stream that contains no Tj/TJ text-show operator', async () => {
+    const compressed = deflateSync(Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]));
+    const buffer = Buffer.concat([
+      Buffer.from(
+        '%PDF-1.4\n1 0 obj\n<< /Filter /FlateDecode >>\nstream\n',
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n', 'latin1'),
+    ]);
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('');
+  });
+
+  it('skips an image stream by its dictionary without decompressing it', async () => {
+    const buffer = pdfWithStream(
+      'not valid zlib data, never inflated',
+      '/Filter /FlateDecode /Subtype /Image /Width 10 /Height 10',
+    );
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('');
+  });
+
+  it('skips an embedded font-program stream by its dictionary', async () => {
+    const buffer = pdfWithStream(
+      'not valid zlib data, never inflated',
+      '/Filter /FlateDecode /Length1 1234 /FontFile2',
+    );
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('');
+  });
+
+  it('treats a stream as having no dictionary when "<<" does not appear within the lookbehind window', async () => {
+    const padding = 'x'.repeat(5000);
+    const buffer = Buffer.from(
+      `%PDF-1.4\n${padding}\nstream\n(Hello) Tj\nendstream\n`,
+      'latin1',
+    );
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('Hello');
+  });
+
+  it('stays fast when a document has many large non-text streams', async () => {
+    const randomish = Buffer.alloc(200_000);
+    for (let i = 0; i < randomish.length; i += 1) {
+      randomish[i] = (i * 2654435761) % 256;
+    }
+    const compressed = deflateSync(randomish);
+
+    const parts = ['%PDF-1.4\n'];
+    for (let i = 0; i < 50; i += 1) {
+      parts.push(
+        `${i} 0 obj\n<< /Filter /FlateDecode /Length ${compressed.length} >>\nstream\n`,
+      );
+      parts.push(compressed.toString('latin1'));
+      parts.push('\nendstream\nendobj\n');
+    }
+    parts.push(
+      '51 0 obj\n<< /Length 1 >>\nstream\n(Found me) Tj\nendstream\nendobj\n',
+    );
+    const buffer = Buffer.from(parts.join(''), 'latin1');
+
+    const start = Date.now();
+    const text = await service.extractText(buffer);
+    const elapsedMs = Date.now() - start;
+
+    expect(text).toBe('Found me');
+    expect(elapsedMs).toBeLessThan(2000);
+  });
 });

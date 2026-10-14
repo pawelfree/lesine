@@ -2,7 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { inflateSync } from 'zlib';
 
 const PDF_HEADER = '%PDF-';
-const STREAM_START = /stream\r?\n/g;
+// The negative lookbehind matters: "endstream" contains "stream" as a
+// substring, so without it every object is matched twice (once for its own
+// "stream" keyword, once inside its closing "endstream") — the second,
+// spurious match treats the next object's dictionary/header as if it were
+// stream body, corrupting (and duplicating) the extracted text.
+const STREAM_START = /(?<!end)stream\r?\n/g;
+// Object dictionaries are short; bounding the backward search for the "<<"
+// that opens one keeps dictionary lookup O(1) per stream instead of O(file
+// size) — real PDFs can have hundreds of streams (fonts, images), and an
+// unbounded `lastIndexOf` per stream turns that into O(streams × file size).
+const DICTIONARY_LOOKBEHIND = 4096;
+// Images and embedded font programs are also commonly FlateDecode-compressed
+// and can be far larger, once inflated, than the file itself; their
+// dictionaries say so up front, so they are skipped without ever inflating
+// or regex-scanning their (irrelevant) body.
+const NON_TEXT_STREAM = /\/Subtype\s*\/Image|\/FontFile\d?\b/;
 // A PDF string token is either a literal `(...)` (with `\`-escapes) or a hex
 // string `<...>`. Both forms are valid operands of `Tj`/`TJ`.
 const STRING_TOKEN_SOURCE = '\\(((?:\\\\.|[^\\\\)])*)\\)|<([0-9A-Fa-f\\s]*)>';
@@ -65,6 +80,15 @@ function decodeStringToken(
  * operator so rows stay distinguishable in the output.
  */
 function extractShownText(content: string): string {
+  // Cheap substring search before the regex passes below: a real content
+  // stream showing text always contains a literal "Tj"/"TJ", while an
+  // image or embedded-font stream (also FlateDecode, often much larger once
+  // inflated) essentially never does. Skipping those avoids running several
+  // full-content regex scans over megabytes of unrelated binary data.
+  if (!content.includes('Tj') && !content.includes('TJ')) {
+    return '';
+  }
+
   const breakPositions = new Set<number>();
   for (const match of content.matchAll(LINE_BREAK_OPERATOR)) {
     breakPositions.add(match.index);
@@ -143,11 +167,18 @@ export class PdfTextExtractorService {
     STREAM_START.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = STREAM_START.exec(raw)) !== null) {
-      const dictStart = Math.max(raw.lastIndexOf('<<', match.index), 0);
-      const dictionary = raw.slice(dictStart, match.index);
+      const lookbehindStart = Math.max(match.index - DICTIONARY_LOOKBEHIND, 0);
+      const lookbehind = raw.slice(lookbehindStart, match.index);
+      const relativeDictStart = lookbehind.lastIndexOf('<<');
+      const dictionary =
+        relativeDictStart === -1 ? '' : lookbehind.slice(relativeDictStart);
       const bodyStart = match.index + match[0].length;
       const bodyEnd = raw.indexOf('endstream', bodyStart);
       if (bodyEnd === -1) {
+        continue;
+      }
+
+      if (NON_TEXT_STREAM.test(dictionary)) {
         continue;
       }
 
@@ -157,7 +188,10 @@ export class PdfTextExtractorService {
         continue;
       }
 
-      sections.push(extractShownText(decoded.toString('latin1')));
+      const text = extractShownText(decoded.toString('latin1'));
+      if (text.length > 0) {
+        sections.push(text);
+      }
     }
 
     return Promise.resolve(sections.join('\n\n'));
