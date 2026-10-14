@@ -1,5 +1,6 @@
 version = 2
 
-# Custom / Bring Your Own Project
+prepare = [["npm", "install"]]
+
 [preview]
-command = ["python3", "-m", "http.server", "3000", "--bind", "0.0.0.0"]
+command = ["npm", "run", "start:preview"]
