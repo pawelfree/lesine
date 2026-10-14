@@ -1,7 +1,7 @@
 ---
 type: run
 date: 2026-10-14
-status: in-progress
+status: completed
 slug: pdf-extraction-reliability
 ---
 
@@ -43,7 +43,7 @@ Add a PDF-to-structured-data extraction pipeline for the advisor's daily report,
 ### Phase 1: Extraction pipeline and manual-verification endpoint
 
 - [x] 1.1 Add PdfTextExtractorService with tests — 3c8c36f (hand-rolled extractor, not pdf-parse; see Risks)
-- [ ] 1.2 Add parser types and AdvisorReportParserService with tests
-- [ ] 1.3 Add AdvisorReportsController + AdvisorReportsModule with tests
-- [ ] 1.4 Add integration test for the endpoint
-- [ ] 1.5 Document the route in BACKWARD_COMPATIBILITY.md
+- [x] 1.2 Add parser types and AdvisorReportParserService with tests — 8a4fb13
+- [x] 1.3 Add AdvisorReportsController + AdvisorReportsModule with tests — a020320
+- [x] 1.4 Add integration test for the endpoint — eeaa1c1 (not runnable in this sandbox, no Docker; see Risks)
+- [x] 1.5 Document the route in BACKWARD_COMPATIBILITY.md — e7bbed4
