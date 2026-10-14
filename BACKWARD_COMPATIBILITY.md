@@ -13,6 +13,7 @@ The application exposes these routes (all under `src/*/\*.controller.ts`). Each 
 | `/health/db` | GET | `HealthController.getDatabaseHealth` | `200 { status: 'ok' }` or `503 { status: 'error' }` | Status code itself is part of the contract (used for readiness checks), not just the body. |
 | `/` | GET | `HomeController.getHomePage` (`src/home/home.controller.ts`) | `200`, `Content-Type: text/html` | Server-rendered HTML via `home.view.ts`; unauthenticated. |
 | `/admin` | GET | `AdminController.getAdminPage` (`src/admin/admin.controller.ts`) | `200`, `Content-Type: text/html`; `401` with `WWW-Authenticate: Basic realm="admin"` when unauthenticated | Protected by `BasicAuthGuard`. |
+| `/admin/advisor-reports/extract` | POST | `AdvisorReportsController.extract` (`src/advisor-reports/advisor-reports.controller.ts`) | `200 { report: ParsedAdvisorReport, warnings: string[] }`; `400` (Nest's standard `{ statusCode, message, error }` shape) for a missing/unparsable upload; `401` when unauthenticated | Protected by `BasicAuthGuard`. Manual-verification tool for issue #2 (E01-S01); persists nothing. |
 
 **Breaking changes** to any route above: removing a route, changing its path, changing a success/error status code, or changing the JSON key names/types in its response. **Required path**: add a new route/version alongside the old one, keep the old one responding unchanged for at least one release, and note the deprecation in the PR body and `CHANGELOG.md`. A purely additive change (a new optional field in a JSON response, a new route) is not breaking.
 
