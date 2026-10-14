@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#141313" />
+    <title>Custom workspace</title>
+    <link rel="icon" type="image/svg+xml" href="sandboxes-mark.svg" />
+    <style>
+      /* The Jev page's palette: two text colours, a surface for cards a shade
+         above the page, and the lime kept for the one button. */
+      :root {
+        --background: #141313;
+        --surface: #181717;
+        --headline: #edf5cd;
+        --soft: #948d85;
+        --primary: #e5f520;
+        --primary-foreground: #1a1919;
+        --border: rgba(255, 255, 255, 0.1);
+        --edge: rgba(255, 255, 255, 0.32);
+        --radius: 8px;
+        --control: 6px;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-height: 100%;
+        background: var(--background);
+      }
+
+      html,
+      body {
+        margin: 0;
+      }
+
+      body {
+        position: relative;
+        display: grid;
+        justify-items: center;
+        align-items: start;
+        min-height: 100vh;
+        min-height: 100svh;
+        padding: 32px 20px 48px;
+        background: var(--background);
+        color: var(--headline);
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* A near-black surface with the sign-in panel's dune field showing only
+         towards the edges. The middle, where the copy sits, is left clean, so
+         nothing needs darkening under the text. */
+      .atmosphere {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .atmosphere > * {
+        position: absolute;
+        inset: 0;
+      }
+
+      .dune {
+        display: block;
+        width: 100%;
+        height: 100%;
+        opacity: 0.55;
+        -webkit-mask-image: radial-gradient(
+          ellipse 78% 72% at 50% 46%,
+          transparent 38%,
+          rgba(0, 0, 0, 0.55) 72%,
+          #000 100%
+        );
+        mask-image: radial-gradient(
+          ellipse 78% 72% at 50% 46%,
+          transparent 38%,
+          rgba(0, 0, 0, 0.55) 72%,
+          #000 100%
+        );
+      }
+
+      /* The mark, made of the same grains, on its own layer so the edge fade
+         on the field does not cut it in half. */
+      .mark-field {
+        display: block;
+        width: 100%;
+        height: 100%;
+        opacity: 0.5;
+      }
+
+      @media (min-width: 860px) {
+        .mark-field {
+          opacity: 0.65;
+        }
+      }
+
+      .vignette {
+        background: radial-gradient(
+          120% 110% at 50% 40%,
+          transparent 55%,
+          rgba(0, 0, 0, 0.45) 100%
+        );
+      }
+
+      main {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 28px;
+        width: min(64rem, 100%);
+        min-width: 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.25rem);
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+      }
+
+      /* Two cards: what you do, what the agent does. Rows inside them are
+         separated by hairlines, the way the Jev page lays out its card. Side
+         by side, both end on the same line: the shorter one's rows share the
+         spare height. */
+      .layout {
+        display: grid;
+        gap: 16px;
+      }
+
+      .card {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        min-width: 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      .card > * + * {
+        border-top: 1px solid var(--border);
+      }
+
+      h2 {
+        margin: 0;
+        padding: 14px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      form,
+      ul {
+        display: grid;
+        align-content: stretch;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .step + .step,
+      li + li {
+        border-top: 1px solid var(--border);
+      }
+
+      /* What you do: numbered, because the order is the instruction. */
+      .how {
+        counter-reset: how;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 1.5rem minmax(0, 1fr);
+        align-content: center;
+        gap: 0 12px;
+        padding: 18px 20px;
+        counter-increment: how;
+      }
+
+      .step::before {
+        content: counter(how);
+        padding-top: 1px;
+        color: var(--soft);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .step > div {
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .title {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+
+      .step span,
+      .agent span {
+        display: block;
+        color: var(--soft);
+        font-size: 13px;
+        line-height: 1.5;
+        text-wrap: pretty;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 7.5rem;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--control);
+        outline: none;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--headline);
+        font: inherit;
+        resize: vertical;
+      }
+
+      textarea:focus {
+        border-color: var(--edge);
+      }
+
+      textarea::placeholder {
+        color: var(--soft);
+      }
+
+      /* The two agents as a pair of options, each with its own mark. The
+         native radio stays for the keyboard and the screen reader; the dot is
+         drawn, so it matches the rest of the page. */
+      .agent-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .agent-option {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 36px;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--control);
+        cursor: pointer;
+      }
+
+      .agent-option input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .agent-option .dot {
+        display: grid;
+        place-items: center;
+        width: 14px;
+        height: 14px;
+        border: 1px solid var(--soft);
+        border-radius: 50%;
+      }
+
+      .agent-option .dot::after {
+        content: "";
+        display: none;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--headline);
+      }
+
+      .agent-option:hover {
+        border-color: var(--edge);
+      }
+
+      .agent-option:has(input:checked) {
+        border-color: var(--headline);
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .agent-option:has(input:checked) .dot {
+        border-color: var(--headline);
+      }
+
+      .agent-option:has(input:checked) .dot::after {
+        display: block;
+      }
+
+      .agent-option:has(input:focus-visible) {
+        outline: 2px solid var(--headline);
+        outline-offset: 2px;
+      }
+
+      /* The agents' own marks, from the portal's agent-marks.tsx. Claude keeps
+         its vendor colour, as it does in the portal; Codex's mark is monochrome
+         anyway. */
+      .agent-mark {
+        width: 16px;
+        height: 16px;
+      }
+
+      code {
+        display: inline-block;
+        max-width: 100%;
+        padding: 0.1em 0.4em;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        font-family: var(--mono);
+        font-size: 0.875em;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 16px;
+      }
+
+      button {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 6px;
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: var(--control);
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: color-mix(in srgb, var(--primary) 90%, white);
+      }
+
+      button:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 3px;
+      }
+
+      /* Nothing to copy yet: the button waits as a quiet outline, and turns
+         lime only once there is a prompt to copy. */
+      button:disabled {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--soft);
+        cursor: not-allowed;
+      }
+
+      button svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      /* What the agent does: the same rows, no numbers, a size down. */
+      .agent li {
+        display: grid;
+        align-content: center;
+        gap: 4px;
+        padding: 16px 20px;
+      }
+
+      .agent strong {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+
+      /* Heard, not seen, when the copy works: the button already says so. */
+      .status.is-quiet {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      .status {
+        margin: 0;
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      .status:empty {
+        display: none;
+      }
+
+      @media (min-width: 860px) {
+        body {
+          padding: 64px 40px 64px;
+        }
+
+        main {
+          gap: 32px;
+        }
+
+        .layout {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          align-items: stretch;
+          gap: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true">
+      <canvas class="dune" id="dune"></canvas>
+      <div class="vignette"></div>
+      <canvas class="mark-field" id="mark-field"></canvas>
+    </div>
+    <main>
+      <h1>Describe the stack you want to build.</h1>
+      <div class="layout">
+        <section class="card" aria-labelledby="how-title">
+          <h2 id="how-title">What you do</h2>
+          <form class="how" id="prompt-builder">
+            <div class="step">
+              <div>
+                <label class="title" for="stack-description">Describe your stack, or paste a repository URL</label>
+                <textarea id="stack-description" required placeholder="For example: Create a Python web app with FastAPI, SQLAlchemy, PostgreSQL, Redis, and pytest. Or paste a repository URL."></textarea>
+                <span>GitHub is optional. Describe a new app or include a repository URL.</span>
+              </div>
+            </div>
+            <div class="step" role="radiogroup" aria-labelledby="agent-title">
+              <div>
+                <strong class="title" id="agent-title">Choose your coding agent</strong>
+                <div class="agent-options">
+                  <label class="agent-option"><input type="radio" name="agent" value="codex" checked /><span class="dot" aria-hidden="true"></span><svg class="agent-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.0379-.0568V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.4587a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>Codex</label>
+                  <label class="agent-option"><input type="radio" name="agent" value="claude" /><span class="dot" aria-hidden="true"></span><svg class="agent-mark" viewBox="0 0 100 100" aria-hidden="true"><path fill="#D97757" d="M19.6 66.5L39.3 55.5L39.6 54.5L39.3 54H38.3L35 53.8L23.8 53.5L14 53L4.5 52.5L2.1 52L0 49L0.2 47.5L2.2 46.2L5.1 46.4L11.4 46.9L20.9 47.5L27.8 47.9L38 49.1H39.6L39.8 48.4L39.3 48L38.9 47.6L29 41L18.4 34L12.8 29.9L9.8 27.9L8.3 25.9L7.7 21.7L10.4 18.7L14.1 19L15 19.2L18.7 22.1L26.7 28.2L37 36L38.5 37.2L39.1 36.8L39.2 36.5L38.5 35.4L33 25L27 14.6L24.3 10.3L23.6 7.7C23.3 6.7 23.2 5.7 23.2 4.7L26.2 0.5L28 0L32.2 0.6L33.8 2L36.4 8L40.5 17.3L47 29.9L49 33.7L50 37.1L50.3 38.1H51V37.6L51.5 30.4L52.5 21.7L53.5 10.5L53.8 7.3L55.4 3.5L58.4 1.5L61 2.6L63 5.5L62.7 7.3L61.6 15L59 27.1L57.5 35.3H58.4L59.4 34.2L63.5 28.8L70.4 20.2L73.4 16.7L77 13L79.3 11.2H83.6L86.7 15.9L85.3 20.8L80.9 26.4L77.2 31.1L71.9 38.2L68.7 43.9L69 44.3H69.7L81.7 41.7L88.1 40.6L95.7 39.3L99.2 40.9L99.6 42.5L98.2 45.9L90 47.9L80.4 49.9L66.1 53.2L65.9 53.3L66.1 53.6L72.5 54.2L75.3 54.4H82.1L94.7 55.4L98 57.4L99.9 60.1L99.6 62.1L94.5 64.7L87.7 63.1L71.7 59.3L66.3 58H65.5V58.4L70.1 62.9L78.4 70.4L89 80.1L89.5 82.5L88.2 84.5L86.8 84.3L77.6 77.3L74 74.3L66 67.5H65.5V68.2L67.3 70.9L77.1 85.6L77.6 90.1L76.9 91.5L74.3 92.5L71.6 91.9L65.8 83.9L59.8 74.9L55.1 66.7L54.6 67.1L51.7 97.3L50.4 98.8L47.4 100L44.9 98L43.5 95L44.9 88.8L46.5 80.8L47.8 74.4L49 66.5L49.7 63.9V63.7H49L43 72L34 84.3L26.8 91.9L25.1 92.6L22.1 91.1L22.4 88.3L24 86L34 73.2L40 65.3L44 60.7L43.9 60.2H43.6L17.2 77.4L12.5 78L10.5 76L10.7 73L11.7 72L19.7 66.5H19.6Z"/></svg>Claude</label>
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div>
+                <strong class="title">Copy the prompt</strong>
+                <div class="row">
+                  <button type="submit" id="copy-prompt" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy prompt</button>
+                  <p class="status" id="copy-status" role="status"></p>
+                </div>
+                <span>Then open the selected agent in the Terminal tab and paste the copied prompt.</span>
+              </div>
+            </div>
+          </form>
+        </section>
+        <section class="card agent" aria-labelledby="steps-title">
+          <h2 id="steps-title">What the agent does</h2>
+          <ul>
+            <li>
+              <strong>Sets up locally first</strong>
+              <span>The <code>/setup-my-stack</code> skill installs and runs your stack without requiring GitHub authorization.</span>
+            </li>
+            <li>
+              <strong>Brings in your project</strong>
+              <span>Imports the repository you pasted, or creates a new local app from your description.</span>
+            </li>
+            <li>
+              <strong>Connects PostgreSQL and Redis</strong>
+              <span>Both already run in this sandbox, so nothing gets installed twice.</span>
+            </li>
+            <li>
+              <strong>Starts your app</strong>
+              <span>When it is running, it takes the place of this page in the preview.</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </main>
+    <script>
+      // The dune field from the portal's sign-in panel
+      // (apps/portal-web/components/auth/dune-field.tsx), same constants, held
+      // still the way the app's page background holds it: dotted horizontal
+      // lines on layered value noise, pushed around by a few invisible points.
+      //
+      // The sandboxes mark sits in the empty space under the steps, bleeding off
+      // the bottom of the page. As on the sign-in panel it is not drawn on top:
+      // it is the same grains, kept only where they land inside the silhouette,
+      // so it reads as part of the surface.
+      (() => {
+        const canvas = document.getElementById("dune");
+        const ctx = canvas.getContext("2d");
+        const markCanvas = document.getElementById("mark-field");
+        const markCtx = markCanvas.getContext("2d");
+        if (!ctx || !markCtx) return;
+
+        const MARK_PATH = "M382.985 5.30048C392.343 0.196502 403.66 0.241892 413.101 5.3856L559.238 85.4022L561.435 86.844C569.651 93.1354 568.897 106.496 559.453 111.657L559.442 111.663L414.994 190.785C399.4 199.346 389.747 215.776 389.74 233.579V403.887C389.74 403.937 389.744 403.986 389.745 404.036C389.745 404.096 389.738 404.157 389.74 404.217C389.997 417.104 395.559 428.909 405.201 435.437C415.064 442.115 427.735 442.267 439.635 434.665C439.778 434.597 439.925 434.535 440.066 434.458L593.232 350.61C597.39 348.368 602.418 348.236 606.719 350.232L607.572 350.663L786.526 448.602L786.537 448.607C791.383 451.254 794.5 456.443 794.5 462.208V672.857C794.5 673.38 794.467 673.756 794.434 674.018C794.054 674.214 793.448 674.503 792.341 674.977C790.876 675.604 788.817 676.47 786.537 677.718L786.526 677.723C659.332 747.351 531.36 818.455 404.244 888.082L404.211 888.099C400.4 890.207 395.791 890.235 391.837 888.077L391.794 888.05L391.746 888.028L19.1771 690.888L19.0372 690.812L17.0797 689.738C7.5246 684.022 1.5011 673.489 1.5 661.905V472.213C1.5 460.23 7.99103 449.304 18.2413 443.675L178.647 355.979L178.663 355.974C194.256 347.413 203.944 330.967 203.945 313.148V121.714C203.945 109.674 210.474 98.7495 220.799 93.1071L220.804 93.1125L382.958 5.31111L382.985 5.30048ZM410.24 448.128C401.675 445.732 392.969 446.629 386.588 447.979C380.102 449.352 375.232 451.369 373.961 451.922L373.557 452.098L373.176 452.316C373.027 452.401 372.895 452.478 372.789 452.545C372.75 452.57 372.71 452.592 372.676 452.614L212.679 540.239C197.082 548.805 187.426 565.228 187.424 583.041C187.424 639.193 187.079 759.627 187.074 761.164V761.208C187.087 767.403 189.302 778.563 202.041 784.873L202.084 784.894C213.141 790.294 224.268 784.894 229.544 781.658L229.549 781.663C230.467 781.151 343.288 718.438 391.848 691.836L391.88 691.82C395.69 689.711 400.301 689.684 404.254 691.836L561.754 778.132C561.892 778.208 562.035 778.263 562.173 778.328C568.98 782.175 575.66 783.805 582.02 783.096C588.546 782.366 593.799 779.277 597.731 775.37C605.237 767.894 608.674 756.761 608.674 748.762V572.977C608.674 561.414 602.445 550.663 592.202 545.062L440.006 461.714C439.424 461.394 438.85 461.026 438.281 460.612L437.947 460.367L437.592 460.16L435.505 458.968C430.027 455.892 420.411 450.977 410.24 448.128ZM372.359 452.838C372.327 452.86 372.294 452.881 372.289 452.886C372.293 452.882 372.301 452.876 372.31 452.87C372.323 452.861 372.343 452.845 372.369 452.827L372.359 452.838Z";
+        const MARK_W = 796;
+        const MARK_H = 891.188;
+        const MARK_ALPHA = 1.6;
+        const MARK_SIZE_GAIN = 0.5;
+
+        // Placed from the layout, not from fixed shares of the page: its top
+        // clears the cards, so no grain of it lands under them. Where
+        // that leaves too little room for the mark to read (a narrow pane, where
+        // the copy runs the full height), it is left out.
+        function markRect(width, height) {
+          const list = document.querySelector(".layout").getBoundingClientRect();
+          const top = list.bottom + 40;
+          const room = height - top;
+          if (width < 860 || room < 220) return null;
+          // Capped, so that pinning the copy near the top does not hand the mark
+          // the whole lower half of the page.
+          const markH = Math.min(room / 0.72, height * 0.58);
+          const markW = (markH * MARK_W) / MARK_H;
+          const centre = list.left + list.width * 0.74;
+          return { x: centre - markW / 2, y: top, w: markW, h: markH };
+        }
+
+        const SPACING_X = 6;
+        const SPACING_Y = 11;
+        const GRAIN_SIZE = 1.7;
+        const CROWD_PEAK = 1.7;
+        const OVERSCAN = 8;
+        const LIFT = 84;
+        const NOISE_SCALE = 2.1;
+        const OCTAVES = 4;
+        const FIELD_COLS = 64;
+        const FIELD_ROWS = 44;
+        const PUSHERS = [[0, 0.34, 1], [2.4, 0.26, -0.8], [4.1, 0.42, 0.65]];
+        const PUSHER_DRIFT = 0.13;
+        const GRAIN = "#f8fec6";
+        // The app's page background pins 4.2; this frame is picked for the mark,
+        // where its cap, chimney and both halves of the body read at once.
+        const STILL_FRAME = 9.1;
+
+        const clamp = (n, lo, hi) => (n < lo ? lo : n > hi ? hi : n);
+        const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+        const mix = (a, b, t) => a + (b - a) * t;
+
+        function hash3(x, y, z) {
+          let n = (x * 374761393 + y * 668265263 + z * 1274126177) | 0;
+          n = (n ^ (n >>> 13)) | 0;
+          n = Math.imul(n, 1274126177);
+          return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+        }
+
+        function noise3(x, y, z) {
+          const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+          const xf = fade(x - xi), yf = fade(y - yi), zf = fade(z - zi);
+          const x00 = mix(hash3(xi, yi, zi), hash3(xi + 1, yi, zi), xf);
+          const x10 = mix(hash3(xi, yi + 1, zi), hash3(xi + 1, yi + 1, zi), xf);
+          const x01 = mix(hash3(xi, yi, zi + 1), hash3(xi + 1, yi, zi + 1), xf);
+          const x11 = mix(hash3(xi, yi + 1, zi + 1), hash3(xi + 1, yi + 1, zi + 1), xf);
+          return mix(mix(x00, x10, yf), mix(x01, x11, yf), zf) * 2 - 1;
+        }
+
+        function fbm(x, y, z) {
+          let sum = 0, amp = 1, norm = 0;
+          for (let o = 0; o < OCTAVES; o++) {
+            sum += noise3(x, y, z) * amp;
+            norm += amp;
+            amp *= 0.5;
+            x *= 2.03;
+            y *= 1.97;
+            z *= 1.91;
+          }
+          return sum / norm;
+        }
+
+        let w = 0, h = 0, dpr = 1;
+        const field = new Float32Array(FIELD_COLS * FIELD_ROWS);
+        let mask = new Uint8Array(0);
+        let maskW = 0;
+
+        // The silhouette, rasterised once per size into a coverage byte per
+        // pixel, so each grain costs one array lookup rather than a path test.
+        function renderMask() {
+          maskW = Math.max(1, Math.round(w));
+          const maskH = Math.max(1, Math.round(h));
+          const off = document.createElement("canvas");
+          off.width = maskW;
+          off.height = maskH;
+          const offCtx = off.getContext("2d", { willReadFrequently: true });
+          if (!offCtx) return;
+          const place = markRect(w, h);
+          if (!place) {
+            mask = new Uint8Array(0);
+            return;
+          }
+          offCtx.translate(place.x, place.y);
+          offCtx.scale(place.h / MARK_H, place.h / MARK_H);
+          offCtx.fillStyle = "#fff";
+          offCtx.fill(new Path2D(MARK_PATH), "nonzero");
+          const data = offCtx.getImageData(0, 0, maskW, maskH).data;
+          mask = new Uint8Array(maskW * maskH);
+          for (let i = 0; i < mask.length; i++) mask[i] = data[i * 4 + 3];
+        }
+
+        function resize() {
+          dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const r = canvas.getBoundingClientRect();
+          w = r.width;
+          h = r.height;
+          canvas.width = Math.max(1, Math.round(w * dpr));
+          canvas.height = Math.max(1, Math.round(h * dpr));
+          markCanvas.width = canvas.width;
+          markCanvas.height = canvas.height;
+          renderMask();
+        }
+
+        function buildField(t) {
+          const pushers = PUSHERS.map(([phase, radius, strength]) => ({
+            x: noise3(phase, 11.3, t * PUSHER_DRIFT) * 0.9,
+            y: noise3(phase + 7.7, 3.1, t * PUSHER_DRIFT) * 0.9,
+            r: radius,
+            s: strength,
+          }));
+          for (let j = 0; j < FIELD_ROWS; j++) {
+            const v = (j / (FIELD_ROWS - 1)) * 2 - 1;
+            for (let i = 0; i < FIELD_COLS; i++) {
+              const u = (i / (FIELD_COLS - 1)) * 2 - 1;
+              let n = fbm(u * NOISE_SCALE, v * NOISE_SCALE, t);
+              for (const p of pushers) {
+                const dx = u - p.x, dy = v - p.y;
+                const d2 = (dx * dx + dy * dy) / (p.r * p.r);
+                if (d2 < 6) n += p.s * Math.exp(-d2);
+              }
+              field[j * FIELD_COLS + i] = n;
+            }
+          }
+        }
+
+        function sampleField(u, v) {
+          const fx = clamp((u + 1) / 2, 0, 1) * (FIELD_COLS - 1);
+          const fy = clamp((v + 1) / 2, 0, 1) * (FIELD_ROWS - 1);
+          const x0 = fx | 0, y0 = fy | 0;
+          const x1 = Math.min(x0 + 1, FIELD_COLS - 1);
+          const y1 = Math.min(y0 + 1, FIELD_ROWS - 1);
+          const tx = fx - x0, ty = fy - y0;
+          return mix(
+            mix(field[y0 * FIELD_COLS + x0], field[y0 * FIELD_COLS + x1], tx),
+            mix(field[y1 * FIELD_COLS + x0], field[y1 * FIELD_COLS + x1], tx),
+            ty,
+          );
+        }
+
+        function draw(t) {
+          buildField(t);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, w, h);
+          markCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          markCtx.clearRect(0, 0, w, h);
+          markCtx.fillStyle = GRAIN;
+          const cols = Math.ceil(w / SPACING_X) + OVERSCAN * 2;
+          const rows = Math.ceil(h / SPACING_Y) + OVERSCAN * 2;
+          let prev = new Float32Array(cols);
+          let curr = new Float32Array(cols);
+          let hasPrev = false;
+
+          for (let row = 0; row < rows; row++) {
+            const y0 = (row - OVERSCAN) * SPACING_Y;
+            const v = (y0 / Math.max(1, h)) * 2 - 1;
+            for (let col = 0; col < cols; col++) {
+              const x = (col - OVERSCAN) * SPACING_X;
+              const u = (x / Math.max(1, w)) * 2 - 1;
+              const y = y0 - sampleField(u, v) * LIFT;
+              curr[col] = y;
+              if (x < 0 || x >= w || y < 0 || y >= h) continue;
+
+              const gap = hasPrev ? Math.abs(y - prev[col]) : SPACING_Y;
+              const crowd = clamp(SPACING_Y / Math.max(gap, 0.6), 0.25, 4);
+              ctx.fillStyle = GRAIN;
+              const shape = crowd <= CROWD_PEAK
+                ? crowd / CROWD_PEAK
+                : Math.max(0.4, 1 - (crowd - CROWD_PEAK) * 0.42);
+              const base = clamp(0.06 + 0.7 * shape, 0.03, 0.8);
+              ctx.globalAlpha = base;
+              ctx.fillRect(x, y, GRAIN_SIZE, GRAIN_SIZE);
+              const inMark = mask.length ? mask[(y | 0) * maskW + (x | 0)] / 255 : 0;
+              if (inMark > 0) {
+                markCtx.globalAlpha = clamp(base * MARK_ALPHA * inMark, 0, 1);
+                const size = GRAIN_SIZE + MARK_SIZE_GAIN * inMark;
+                markCtx.fillRect(x, y, size, size);
+              }
+            }
+            const swap = prev;
+            prev = curr;
+            curr = swap;
+            hasPrev = true;
+          }
+          ctx.globalAlpha = 1;
+          markCtx.globalAlpha = 1;
+        }
+
+        // One still frame, redrawn only when the page changes size. The page is
+        // mostly reading, and a surface that moves or answers the pointer pulls
+        // the eye off the copy.
+        resize();
+        draw(STILL_FRAME);
+        new ResizeObserver(() => {
+          resize();
+          draw(STILL_FRAME);
+        }).observe(canvas);
+      })();
+    </script>
+    <script>
+      const status = document.getElementById("copy-status");
+      const button = document.getElementById("copy-prompt");
+      const form = document.getElementById("prompt-builder");
+      const description = document.getElementById("stack-description");
+      const idleMarkup = button.innerHTML;
+      const copiedMarkup =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Copied';
+      let resetTimer = 0;
+
+      function setStatus(message, quiet = false) {
+        status.textContent = message;
+        status.classList.toggle("is-quiet", quiet);
+      }
+
+      function resetCopyState() {
+        button.innerHTML = idleMarkup;
+      }
+
+      function selectedAgent() {
+        return form.elements.agent.value;
+      }
+
+      function buildPrompt() {
+        const request = description.value.trim();
+        if (!request) {
+          throw new Error("Describe the stack you want first.");
+        }
+        const invocation = selectedAgent() === "claude"
+          ? "/setup-my-stack"
+          : "$setup-my-stack";
+        return `${invocation}\n\nSet up this stack in the current workspace:\n\n${request}\n\nWork locally first. If the description includes a repository URL, import it. Otherwise create the app locally. Do not require or create a GitHub repository unless I explicitly ask you to publish one. Install the required dependencies, configure the provided PostgreSQL and Redis services when relevant, start the app, and verify that it works in the Web preview.`;
+      }
+
+      function copyWithTextarea(text) {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.left = "-9999px";
+        document.body.appendChild(area);
+        area.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(area);
+        if (!copied) {
+          throw new Error("Clipboard copy failed.");
+        }
+      }
+
+      async function copyPrompt() {
+        const text = buildPrompt();
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(text);
+            return;
+          } catch (_error) {
+            // Fall through to the textarea path on http previews.
+          }
+        }
+        copyWithTextarea(text);
+      }
+
+      function syncButton() {
+        button.disabled = description.value.trim().length === 0;
+        resetCopyState();
+        setStatus("");
+      }
+
+      description.addEventListener("input", syncButton);
+      form.querySelectorAll('input[name="agent"]').forEach((option) => option.addEventListener("change", syncButton));
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        window.clearTimeout(resetTimer);
+        try {
+          await copyPrompt();
+          button.innerHTML = copiedMarkup;
+          setStatus("Setup prompt copied.", true);
+          resetTimer = window.setTimeout(resetCopyState, 2500);
+        } catch (error) {
+          resetCopyState();
+          setStatus(error instanceof Error ? error.message : "Could not copy the prompt.");
+        }
+      });
+    </script>
+  </body>
+</html>

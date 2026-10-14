@@ -1,0 +1,3 @@
+Read and follow `/workspace/.agents/skills/setup-my-stack/SKILL.md` completely.
+
+Set up the stack I describe after this line. If I provide a repository URL, import it. Otherwise create the app locally; do not require or create a GitHub repository unless I explicitly ask you to publish one.
