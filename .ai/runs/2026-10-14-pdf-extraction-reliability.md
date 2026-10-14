@@ -34,6 +34,7 @@ Add a PDF-to-structured-data extraction pipeline for the advisor's daily report,
 ## Risks
 
 - The parser's assumed PDF layout is an unconfirmed guess (spec `Q1`, `⚠ NEEDS HUMAN CONFIRMATION`) — tests validate the parser against the assumed format, not the real one; the product owner must confirm against a real PDF before trusting results.
+- Deviation from spec `Q2`: `pdf-parse` (the planned dependency) failed to parse valid PDFs reliably under this project's Jest runtime (old bundled pdf.js builds + Jest's module sandboxing — reproducible even on a minimal, valid, pdf-lib-generated fixture; worked fine outside Jest). Replaced with a small dependency-free extractor (stream/endstream scan + zlib inflate + Tj/TJ operator parsing) covering the same scope. No new dependency risk, but the extractor is narrower than a general PDF library — it only reads simple text-show operators, not arbitrary layouts/fonts/CMaps.
 
 ## Progress
 
@@ -41,7 +42,7 @@ Add a PDF-to-structured-data extraction pipeline for the advisor's daily report,
 
 ### Phase 1: Extraction pipeline and manual-verification endpoint
 
-- [ ] 1.1 Add pdf-parse dependency and PdfTextExtractorService with tests
+- [x] 1.1 Add PdfTextExtractorService with tests — 3c8c36f (hand-rolled extractor, not pdf-parse; see Risks)
 - [ ] 1.2 Add parser types and AdvisorReportParserService with tests
 - [ ] 1.3 Add AdvisorReportsController + AdvisorReportsModule with tests
 - [ ] 1.4 Add integration test for the endpoint
