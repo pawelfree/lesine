@@ -3,8 +3,16 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { AgentBrowserSession } from './agent-browser';
 import { createTestApp, TestApp } from './test-app';
+
+function adminAuthHeader(): string {
+  const user = process.env.ADMIN_USERNAME ?? 'admin';
+  const password = process.env.ADMIN_PASSWORD ?? 'admin';
+  return `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
+}
 
 describe('App (integration)', () => {
   let container: StartedPostgreSqlContainer;
@@ -58,5 +66,43 @@ describe('App (integration)', () => {
     expect(browser.getText('[data-testid="admin-db-status"]')).toContain(
       'Database status: Connected',
     );
+  });
+
+  it('rejects unauthenticated requests to the advisor-reports extraction endpoint', async () => {
+    // Plain HTTP check for the same reason as the admin-panel check above:
+    // avoids triggering a native Basic-Auth credentials prompt.
+    const response = await fetch(`${baseUrl}/admin/advisor-reports/extract`, {
+      method: 'POST',
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('extracts the advisor report from an authenticated PDF upload', async () => {
+    const pdfBytes = readFileSync(
+      join(
+        __dirname,
+        '../../src/advisor-reports/__fixtures__/minimal-report.pdf',
+      ),
+    );
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([pdfBytes], { type: 'application/pdf' }),
+      'report.pdf',
+    );
+
+    const response = await fetch(`${baseUrl}/admin/advisor-reports/extract`, {
+      method: 'POST',
+      headers: { Authorization: adminAuthHeader() },
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      report: unknown;
+      warnings: unknown;
+    };
+    expect(body).toHaveProperty('report');
+    expect(body).toHaveProperty('warnings');
   });
 });

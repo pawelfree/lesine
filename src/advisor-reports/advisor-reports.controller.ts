@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Controller,
+  HttpCode,
+  HttpStatus,
   Post,
   UploadedFile,
   UseGuards,
@@ -21,6 +23,7 @@ export class AdvisorReportsController {
   ) {}
 
   @Post('extract')
+  @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file'))
   async extract(
     @UploadedFile() file?: Express.Multer.File,
