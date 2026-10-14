@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { AdminController } from './admin/admin.controller';
+import { AdvisorReportsController } from './advisor-reports/advisor-reports.controller';
 import { AppController } from './app.controller';
 import { AppModule } from './app.module';
 import { DatabaseService } from './database/database.service';
@@ -19,6 +20,9 @@ describe('AppModule', () => {
     expect(moduleRef.get(HomeController)).toBeInstanceOf(HomeController);
     expect(moduleRef.get(HealthController)).toBeInstanceOf(HealthController);
     expect(moduleRef.get(AdminController)).toBeInstanceOf(AdminController);
+    expect(moduleRef.get(AdvisorReportsController)).toBeInstanceOf(
+      AdvisorReportsController,
+    );
 
     await moduleRef.close();
   });
