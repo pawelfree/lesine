@@ -36,6 +36,7 @@
     "@testcontainers/postgresql": "^12.2.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.3.0",
     "@types/node": "^22.13.4",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
