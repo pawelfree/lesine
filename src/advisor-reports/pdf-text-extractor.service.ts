@@ -20,9 +20,25 @@ const DICTIONARY_LOOKBEHIND = 4096;
 const NON_TEXT_STREAM = /\/Subtype\s*\/Image|\/FontFile\d?\b/;
 // A PDF string token is either a literal `(...)` (with `\`-escapes) or a hex
 // string `<...>`. Both forms are valid operands of `Tj`/`TJ`.
-const STRING_TOKEN_SOURCE = '\\(((?:\\\\.|[^\\\\)])*)\\)|<([0-9A-Fa-f\\s]*)>';
+//
+// The repetitions below are explicitly bounded (no bare `*`). A real PDF
+// text-show string is at most a line of text — a few hundred characters —
+// so these limits are generous for genuine content, but the bound matters:
+// an unbounded `(?:\\.|[^\\)])*` attempted from every stray "(" or "<" byte
+// in binary data it doesn't belong to (an inline image sharing the content
+// stream with real text, for instance) scans forward to the end of the
+// buffer looking for a closing ")"/">" that isn't there, and does that from
+// every such byte — effectively O(n²) on a multi-megabyte stream. Bounding
+// the match length caps each failed attempt at the bound instead of the
+// remaining buffer size.
+const MAX_STRING_LENGTH = 500;
+const MAX_ARRAY_LENGTH = 2000;
+const STRING_TOKEN_SOURCE = `\\(((?:\\\\.|[^\\\\)]){0,${MAX_STRING_LENGTH}})\\)|<([0-9A-Fa-f\\s]{0,${MAX_STRING_LENGTH}})>`;
 const SHOW_TEXT_OPERATOR = new RegExp(`(?:${STRING_TOKEN_SOURCE})\\s*Tj`, 'g');
-const SHOW_TEXT_ARRAY_OPERATOR = /\[((?:\\.|[^\]])*)\]\s*TJ/g;
+const SHOW_TEXT_ARRAY_OPERATOR = new RegExp(
+  `\\[((?:\\\\.|[^\\]]){0,${MAX_ARRAY_LENGTH}})\\]\\s*TJ`,
+  'g',
+);
 const ARRAY_STRING = new RegExp(STRING_TOKEN_SOURCE, 'g');
 const LINE_BREAK_OPERATOR = /\b(?:Td|TD|T\*)\b/g;
 
@@ -75,11 +91,40 @@ function decodeStringToken(
 }
 
 /**
+ * Removes inline images (`BI` … `ID` … `EI`) from a content stream before
+ * text extraction runs. Their raw sample data sits inline, mixed in with
+ * real text operators in the very same stream `NON_TEXT_STREAM` cannot help
+ * with (it only catches separately-dictionaried image/font *objects*), and
+ * can coincidentally contain long runs of bytes the string-token regexes
+ * below try (and fail) to match as text. Uses only `indexOf` — a guaranteed
+ * linear scan, no regex involved — so this is safe regardless of content.
+ */
+function stripInlineImages(content: string): string {
+  let result = '';
+  let cursor = 0;
+  for (;;) {
+    const biIndex = content.indexOf('BI', cursor);
+    if (biIndex === -1) {
+      return result + content.slice(cursor);
+    }
+    const idIndex = content.indexOf('ID', biIndex);
+    const eiIndex = idIndex === -1 ? -1 : content.indexOf('EI', idIndex);
+    if (idIndex === -1 || eiIndex === -1) {
+      return result + content.slice(cursor);
+    }
+    result += content.slice(cursor, biIndex);
+    cursor = eiIndex + 2;
+  }
+}
+
+/**
  * Extracts the text shown by `Tj`/`TJ` operators from a single decompressed
  * PDF content stream, inserting a line break at each line-positioning
  * operator so rows stay distinguishable in the output.
  */
-function extractShownText(content: string): string {
+function extractShownText(rawContent: string): string {
+  const content = stripInlineImages(rawContent);
+
   // Cheap substring search before the regex passes below: a real content
   // stream showing text always contains a literal "Tj"/"TJ", while an
   // image or embedded-font stream (also FlateDecode, often much larger once

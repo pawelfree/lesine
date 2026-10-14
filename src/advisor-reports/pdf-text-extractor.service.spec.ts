@@ -189,4 +189,36 @@ describe('PdfTextExtractorService', () => {
     expect(text).toBe('Found me');
     expect(elapsedMs).toBeLessThan(2000);
   });
+
+  it('strips an inline image (BI/ID/EI) sharing a content stream with real text', async () => {
+    const junk = '('.repeat(50_000);
+    const content = `BT\n(Before) Tj\nET\nBI\n/W 10 /H 10\nID\n${junk}\nEI\n(After) Tj`;
+    const buffer = pdfWithStream(content, '/Length 10');
+
+    const start = Date.now();
+    const text = await service.extractText(buffer);
+    const elapsedMs = Date.now() - start;
+
+    expect(text).toBe('BeforeAfter');
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it('leaves content as-is when "BI" has no following "ID"', async () => {
+    const buffer = pdfWithStream('(Before) Tj BI no id here', '/Length 10');
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('Before');
+  });
+
+  it('leaves content as-is when "BI"/"ID" appear with no following "EI"', async () => {
+    const buffer = pdfWithStream(
+      '(Before) Tj BI\nID\nno ei here',
+      '/Length 10',
+    );
+
+    const text = await service.extractText(buffer);
+
+    expect(text).toBe('Before');
+  });
 });
