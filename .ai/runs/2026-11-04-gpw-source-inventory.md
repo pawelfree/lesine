@@ -33,3 +33,8 @@ Remaining: finalize PR review handoff and manual UI/source-account acceptance.
 Decision: the code task is done; independent review, manual UI QA and real-account Q06 evidence remain downstream acceptance gates.
 Verification: the final configured build passed; no automated GitHub checks were reported on the PR.
 Remaining: reviewers perform QA and approve; the epic keeps the real-source completeness gate open.
+
+2026-11-04 — Restore shared styles for the Data page after browser screenshot QA exposed missing component styling.
+Decision: register app.css as a global Angular stylesheet so routed components receive the shared page styles.
+Verification: full build, unit tests, desktop and mobile browser screenshots, and the delisted filter check passed.
+Remaining: independent review, manual acceptance and real-account Q06 evidence remain PR gates.
