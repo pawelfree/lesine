@@ -34,6 +34,8 @@ Implement step 5 of the source-inventory and local EOD archive plan. Keep the cu
 
 ## Progress
 
+PR: #14
+
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Archive model and atomic import
@@ -48,5 +50,5 @@ Implement step 5 of the source-inventory and local EOD archive plan. Keep the cu
 
 ### Phase 3: Evidence and delivery
 
-- [ ] 3.1 Test cross-job idempotence, corrections, stale leases, crash atomicity, tampering, and backup/restore against isolated PostgreSQL.
-- [ ] 3.2 Document the procedure and limits, run the configured build and integration checks, and publish a reviewable PR.
+- [x] 3.1 Test cross-job idempotence, corrections, stale leases, crash atomicity, tampering, and backup/restore against isolated PostgreSQL. — a062dbf
+- [x] 3.2 Document the procedure and limits, run the configured build and integration checks, and publish a reviewable PR. — 5a421f0

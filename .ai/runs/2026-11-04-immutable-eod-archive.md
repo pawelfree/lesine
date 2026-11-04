@@ -2,7 +2,7 @@
 
 Goals: Store immutable source responses and append-only bar revisions with a checked, recoverable backup bundle.
 Spec: [Local GPW history with coverage](../specs/2026-11-04-local-gpw-history-with-coverage.md)
-Status: in-progress
+Status: done
 
 ## Commit log
 
@@ -42,3 +42,8 @@ Remaining: final validation, re-review, ready PR and environment cleanup.
 Decision: the newly built worker must not run against schema 003 before the upgraded API applies migration 004.
 Verification: a disposable schema-003 Compose project produced a bundle and left only PostgreSQL running.
 Remaining: final build, code review, ready PR and temporary-environment cleanup.
+
+2026-11-04 — Complete the execution plan after full validation and the PR code-review pass.
+Decision: retain `needs-qa` for the high-risk archive flow; native self-approval is unavailable on GitHub.
+Verification: build, unit tests, isolated PostgreSQL tests, old-schema backup and populated restore passed; review evidence is on PR #14.
+Remaining: human QA/merge decision after the ready PR; temporary test resources are removed by this run.
