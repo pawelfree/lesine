@@ -27,3 +27,8 @@ Remaining: final validation, code review, PR publication and temporary-environme
 2026-11-04 — Mark Phase 2 recovery steps complete in the execution plan.
 Decision: keep the populated restore smoke test as release evidence, then run the full configured gate before review.
 Remaining: full validation, code review, PR publication and temporary-environment cleanup.
+
+2026-11-04 — Add a PostgreSQL regression for a failed revision insert after manifest creation.
+Decision: a database constraint failure must roll back the manifest and leave the chunk pending.
+Verification: the test passed on a fresh isolated database; a populated bundle restored one bar, one manifest and one checked file into empty volumes.
+Remaining: final full gate, code review, PR publication and cleanup.

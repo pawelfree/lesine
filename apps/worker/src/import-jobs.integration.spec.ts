@@ -116,7 +116,9 @@ test('import checkpoints survive restart and stale leases cannot publish',
       );
       assert.deepEqual(revisions.rows.map((bar) => Number(bar.close)), [2, 2.5]);
       assert.notEqual(revisions.rows[0].first_manifest_id, revisions.rows[1].first_manifest_id);
-      assert.equal((await pool.query(`SELECT COUNT(*)::int AS count FROM raw_file_manifest_revisions`)).rows[0].count, 3);
+      assert.equal((await pool.query(`SELECT COUNT(*)::int AS count FROM raw_file_manifest_revisions mr
+        JOIN daily_bar_revisions r ON r.id = mr.revision_id WHERE r.source_symbol_id = $1`,
+      [symbolId])).rows[0].count, 3);
 
       const bundle = join(directory, 'bundle');
       await mkdir(bundle);
@@ -160,6 +162,21 @@ test('import checkpoints survive restart and stale leases cannot publish',
       };
       const getStatus = async (id: string): Promise<string> =>
         (await pool.query('SELECT status FROM import_jobs WHERE id = $1', [id])).rows[0].status as string;
+      const rollbackJob = await addJob();
+      const rollbackChunk = (await pool.query('SELECT id FROM import_chunks WHERE job_id = $1',
+        [rollbackJob])).rows[0].id as string;
+      const rollbackLease = await claimJob(pool);
+      assert.equal(rollbackLease?.id, rollbackJob);
+      await assert.rejects(() => commitChunk(pool, rollbackLease!, rollbackChunk,
+        'a'.repeat(64), `import/${'a'.repeat(64)}.json`, [{ date: '2025-03-03', open: 1,
+          high: 3, low: 1, close: 2, adjustedClose: null, volume: -1, fingerprint: 'b'.repeat(64) }]),
+      /daily_bar_revisions_volume_check/);
+      assert.equal((await pool.query('SELECT COUNT(*)::int AS count FROM raw_file_manifests WHERE chunk_id = $1',
+        [rollbackChunk])).rows[0].count, 0, 'a failed revision insert must roll back its manifest');
+      assert.equal((await pool.query('SELECT status FROM import_chunks WHERE id = $1',
+        [rollbackChunk])).rows[0].status, 'queued', 'a failed transaction must not complete the chunk');
+      await pool.query("UPDATE import_jobs SET status = 'done', lease_token = NULL, lease_expires_at = NULL WHERE id = $1",
+        [rollbackJob]);
       const limited = await addJob();
       const retryStartedAt = Date.now();
       await processImport(pool, async () => new Response('rate limited',
