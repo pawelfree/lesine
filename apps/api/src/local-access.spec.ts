@@ -13,5 +13,6 @@ test('writes require an origin, cookie and matching CSRF header', () => {
   assert.equal(localAccessAllowed(base, 'POST'), false);
   assert.equal(localAccessAllowed({ ...base, cookie: `lesine_csrf=${csrfToken()}` }, 'POST'), false);
   assert.equal(localAccessAllowed({ ...base, cookie: `lesine_csrf=${csrfToken()}`, 'x-lesine-csrf': '0'.repeat(64) }, 'POST'), false);
+  assert.equal(localAccessAllowed({ ...base, cookie: `lesine_csrf=${csrfToken()}`, 'x-lesine-csrf': 'ą'.repeat(64) }, 'POST'), false);
   assert.equal(localAccessAllowed({ ...base, cookie: `lesine_csrf=${csrfToken()}`, 'x-lesine-csrf': csrfToken() }, 'POST'), true);
 });

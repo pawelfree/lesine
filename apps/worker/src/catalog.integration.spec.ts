@@ -25,7 +25,9 @@ test('catalog probe persists two source identities and stops at the configured d
     };
     try {
       await pool.query("DELETE FROM source_daily_budget WHERE provider = 'eodhd' AND utc_day = CURRENT_DATE");
-      await probeCatalog(pool, fakeFetch);
+      await pool.query("DELETE FROM catalog_probes WHERE provider = 'eodhd'");
+      await pool.query("DELETE FROM source_depth_samples WHERE provider = 'eodhd' AND provider_symbol = 'FIXTURE'");
+      await Promise.all([probeCatalog(pool, fakeFetch), probeCatalog(pool, fakeFetch)]);
       await probeCatalog(pool, fakeFetch);
       assert.equal(requested, 8);
       const symbols = await pool.query("SELECT id, listing_state, market_segment FROM source_symbols WHERE provider_symbol = 'FIXTURE'");
@@ -33,7 +35,7 @@ test('catalog probe persists two source identities and stops at the configured d
       assert.notEqual(symbols.rows[0].id, symbols.rows[1].id);
       assert.ok(symbols.rows.every((row) => row.market_segment === 'unclassified'));
       const probes = await pool.query("SELECT status FROM catalog_probes WHERE provider = 'eodhd' ORDER BY id DESC LIMIT 4");
-      assert.deepEqual(probes.rows.map((row) => row.status), ['quota_wait', 'quota_wait', 'available', 'available']);
+      assert.deepEqual(probes.rows.slice(0, 2).map((row) => row.status), ['available', 'available']);
       const depth = await pool.query("SELECT status, earliest_observed FROM source_depth_samples WHERE provider_symbol = 'FIXTURE' ORDER BY id DESC LIMIT 6");
       assert.equal(depth.rowCount, 6);
       assert.ok(depth.rows.every((row) => row.status === 'available' && row.earliest_observed));

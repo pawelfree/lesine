@@ -18,3 +18,8 @@ Remaining: review the PR, address findings, finish UI evidence if a browser is a
 2026-11-04 — Mark all planned implementation steps complete and attach PR #12 to the tracking plan.
 Decision: real EODHD access remains an acceptance evidence gate (Q06), so the report keeps rights and full-history status unverified.
 Remaining: run the review loop, address findings and finalize the PR handoff.
+
+2026-11-04 — Fix review findings: reject malformed CSRF input, avoid repeat catalog calls, serialize probes and ignore stale UI filter responses.
+Decision: use forward-only migration replay checks and live HTTP denial tests as integration evidence; source account access remains unverified.
+Verification: full build, unit tests, isolated PostgreSQL migration and provider-stub tests, and HTTP boundary tests passed.
+Remaining: publish the review-fix commit, finalize PR labels/body and arrange manual UI QA.

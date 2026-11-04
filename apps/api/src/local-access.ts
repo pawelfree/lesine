@@ -19,7 +19,7 @@ export function localAccessAllowed(headers: IncomingMessage['headers'], method: 
   if (!origin) return false;
   const cookie = headers.cookie?.match(/(?:^|;\s*)lesine_csrf=([a-f0-9]{64})(?:;|$)/)?.[1];
   const supplied = headers['x-lesine-csrf'];
-  if (!cookie || typeof supplied !== 'string' || supplied.length !== 64) return false;
+  if (!cookie || typeof supplied !== 'string' || !/^[a-f0-9]{64}$/.test(supplied)) return false;
   return timingSafeEqual(Buffer.from(cookie), Buffer.from(processToken)) &&
     timingSafeEqual(Buffer.from(supplied), Buffer.from(processToken));
 }

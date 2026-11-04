@@ -62,6 +62,12 @@ async function probeDepth(pool: Pool, fetcher: typeof fetch, token: string, stat
   today.setUTCFullYear(today.getUTCFullYear() - 1);
   const sampleFrom = today.toISOString().slice(0, 10);
   for (const dataClass of ['eod', 'dividends', 'splits'] as const) {
+    const alreadySampled = await pool.query(
+      `SELECT 1 FROM source_depth_samples WHERE provider = 'eodhd' AND provider_symbol = $1
+       AND listing_state = $2 AND data_class = $3 AND checked_at::date = CURRENT_DATE
+       AND status IN ('available', 'empty') LIMIT 1`, [symbol, state, dataClass],
+    );
+    if (alreadySampled.rowCount) continue;
     const client = await pool.connect();
     let reserved = false;
     try { reserved = await reserveCall(client, dailyLimit); }
@@ -123,6 +129,20 @@ async function retainResponse(raw: string, responseHash: string): Promise<void> 
 }
 
 export async function probeCatalog(pool: Pool, fetcher: typeof fetch = fetch): Promise<void> {
+  const lease = await pool.connect();
+  let claimed = false;
+  try {
+    const lock = await lease.query('SELECT pg_try_advisory_lock(375092) AS claimed');
+    claimed = lock.rows[0]?.claimed === true;
+    if (!claimed) return;
+    await probeCatalogUnlocked(pool, fetcher);
+  } finally {
+    try { if (claimed) await lease.query('SELECT pg_advisory_unlock(375092)'); }
+    finally { lease.release(); }
+  }
+}
+
+async function probeCatalogUnlocked(pool: Pool, fetcher: typeof fetch): Promise<void> {
   const token = process.env.EODHD_API_TOKEN;
   if (!token) {
     await Promise.all((['active', 'delisted'] as const).map((state) => recordProbe(pool, state, 'unavailable', null, null, 'missing_credential')));
@@ -131,6 +151,18 @@ export async function probeCatalog(pool: Pool, fetcher: typeof fetch = fetch): P
   const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
   const dailyLimit = Number.isInteger(configured) && configured >= 1 && configured <= 20 ? configured : 2;
   for (const state of ['active', 'delisted'] as const) {
+    const alreadyProbed = await pool.query(
+      `SELECT 1 FROM catalog_probes WHERE provider = 'eodhd' AND listing_state = $1
+       AND checked_at::date = CURRENT_DATE AND status = 'available' LIMIT 1`, [state],
+    );
+    if (alreadyProbed.rowCount) {
+      const symbol = await pool.query(
+        `SELECT provider_symbol FROM source_symbols WHERE provider = 'eodhd' AND listing_state = $1
+         AND last_seen_at::date = CURRENT_DATE ORDER BY provider_symbol LIMIT 1`, [state],
+      );
+      if (symbol.rows[0]) await probeDepth(pool, fetcher, token, state, symbol.rows[0].provider_symbol as string, dailyLimit);
+      continue;
+    }
     const client = await pool.connect();
     let reserved = false;
     try {

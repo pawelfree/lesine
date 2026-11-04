@@ -78,6 +78,7 @@ export class DataPage {
   readonly market = signal('all');
   readonly listing = signal('all');
   private cursor: string | null = null;
+  private requestSequence = 0;
 
   statusLabel(status: string): string {
     return ({ available: 'dostępne', unavailable: 'niedostępne', quota_wait: 'oczekiwanie na limit', empty: 'brak rekordów' } as Record<string, string>)[status] ?? 'nieznany';
@@ -96,6 +97,7 @@ export class DataPage {
   next(): void { this.cursor = this.catalog()?.page.next_cursor ?? null; void this.load(); }
 
   private async load(): Promise<void> {
+    const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
     try {
@@ -103,8 +105,9 @@ export class DataPage {
       if (this.cursor) params.set('after', this.cursor);
       const response = await fetch(`/api/catalog?${params.toString()}`);
       if (!response.ok) throw new Error('catalog_unavailable');
-      this.catalog.set(await response.json() as CatalogResponse);
-    } catch { this.error.set(true); }
-    finally { this.loading.set(false); }
+      const catalog = await response.json() as CatalogResponse;
+      if (sequence === this.requestSequence) this.catalog.set(catalog);
+    } catch { if (sequence === this.requestSequence) this.error.set(true); }
+    finally { if (sequence === this.requestSequence) this.loading.set(false); }
   }
 }
