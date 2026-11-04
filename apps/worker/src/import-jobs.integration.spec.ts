@@ -92,8 +92,13 @@ test('import checkpoints survive restart and stale leases cannot publish',
       const getStatus = async (id: string): Promise<string> =>
         (await pool.query('SELECT status FROM import_jobs WHERE id = $1', [id])).rows[0].status as string;
       const limited = await addJob();
-      await processImport(pool, async () => new Response('rate limited', { status: 429 }));
+      const retryStartedAt = Date.now();
+      await processImport(pool, async () => new Response('rate limited',
+        { status: 429, headers: { 'Retry-After': '172800' } }));
       assert.equal(await getStatus(limited), 'quota_wait');
+      const retry = await pool.query('SELECT retry_after_utc FROM import_jobs WHERE id = $1', [limited]);
+      assert.ok((retry.rows[0].retry_after_utc as Date).getTime() - retryStartedAt >= 172_799_000,
+        'provider Retry-After must not be shortened');
       const exhausted = await addJob();
       await processImport(pool, async () => { throw new Error('budget must block provider request'); });
       assert.equal(await getStatus(exhausted), 'quota_wait');

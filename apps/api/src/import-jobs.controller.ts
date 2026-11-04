@@ -23,9 +23,11 @@ export class ImportJobsController {
   @HttpCode(202)
   async create(@Body() body: Request): Promise<{ data: { id: string; status: string; scope_hash: string; created_at: string } }> {
     if (!body || typeof body !== 'object' || Object.keys(body).some((field) => !requestFields.has(field)) ||
-      body.provider !== 'eodhd' || !['main', 'newconnect', 'all'].includes(String(body.market_scope)) ||
+      body.provider !== 'eodhd' || typeof body.market_scope !== 'string' ||
+      !['main', 'newconnect', 'all'].includes(body.market_scope) ||
       !Array.isArray(body.data_classes) || body.data_classes.length !== 1 || body.data_classes[0] !== 'daily_bars' ||
-      !['backfill', 'incremental'].includes(String(body.mode)) || !validDate(body.from_date) || !validDate(body.to_date) ||
+      typeof body.mode !== 'string' || !['backfill', 'incremental'].includes(body.mode) ||
+      !validDate(body.from_date) || !validDate(body.to_date) ||
       body.from_date > body.to_date ||
       (Date.parse(`${body.to_date}T00:00:00Z`) - Date.parse(`${body.from_date}T00:00:00Z`)) > 366 * 86_400_000) {
       throw error('invalid_request', 'Nieprawidłowy zakres importu.', 400);

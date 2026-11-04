@@ -48,6 +48,8 @@ test('job creation materializes bounded ranges and rejects overlapping active sc
       assert.deepEqual(missing.rows, [{ start: '2025-01-10', finish: '2025-01-14' }, { start: '2025-02-11', finish: '2025-02-15' }]);
       await assert.rejects(() => controller.create({ ...request, from_date: '2025-02-30' }),
         (error: unknown) => (error as { status?: number }).status === 400);
+      await assert.rejects(() => controller.create({ ...request, mode: { toString: null } }),
+        (error: unknown) => (error as { status?: number }).status === 400);
       await assert.rejects(() => controller.resume(jobId!, { api_token: 'must-not-be-accepted' }),
         (error: unknown) => (error as { status?: number }).status === 400);
     } finally {

@@ -17,7 +17,7 @@ function retryAfter(header: string | null): Date {
     const seconds = Number(header);
     const time = Number.isFinite(seconds) && seconds >= 0
       ? Date.now() + seconds * 1000 : Date.parse(header);
-    if (Number.isFinite(time) && time > Date.now()) return new Date(Math.min(time, Date.now() + 86_400_000));
+    if (Number.isFinite(time) && time > Date.now() && time <= 8_640_000_000_000_000) return new Date(time);
   }
   return nextUtcDay();
 }

@@ -47,3 +47,8 @@ Remaining: independent PR/QA gates and the separate canonical-revision task #11.
 2026-11-04 — Correct the PR's QA route after applying the owner's earlier preference to skip manual checks of the temporary Data view.
 Decision: replace `needs-qa` with `skip-qa`; keep automated UI, database and worker evidence and disclose that browser screenshots were unavailable.
 Remaining: independent code review and real EODHD entitlement/depth evidence; issue #11 supplies canonical revisions.
+
+2026-11-04 — Correct the review findings for PR #13: honor the full provider Retry-After and reject malformed import fields with HTTP 400.
+Decision: preserve the provider's stated backoff; validate JSON field types before checking allowed values.
+Verification: full build and test suite plus isolated PostgreSQL API and worker regression tests passed.
+Remaining: publish the review result and remove the temporary PR environment.
