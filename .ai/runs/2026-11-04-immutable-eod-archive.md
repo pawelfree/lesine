@@ -18,3 +18,8 @@ Remaining: file reconciliation, backup/restore, correction and tamper tests, doc
 2026-11-04 — Mark Phase 1 archive schema and import steps complete in the execution plan.
 Decision: keep recovery as a separate phase so the manifest transaction can be reviewed independently.
 Remaining: file reconciliation, backup/restore, correction and tamper tests, documentation and PR review.
+
+2026-11-04 — Add archive integrity checks, orphan quarantine, a bundle backup/restore command, and safe legacy-chunk rescheduling.
+Decision: restore accepts only empty volumes and verifies bundle and restored references before services restart.
+Verification: PostgreSQL integration covered corrections, tampering and orphan handling; disposable Compose projects restored empty and populated bundles (one bar, one manifest, one file).
+Remaining: final validation, code review, PR publication and temporary-environment cleanup.

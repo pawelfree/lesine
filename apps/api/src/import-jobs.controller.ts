@@ -55,6 +55,7 @@ export class ImportJobsController {
              AND ($5 = 'backfill' OR NOT EXISTS (
                SELECT 1 FROM import_chunks prior JOIN import_jobs j ON j.id = prior.job_id
                WHERE j.provider = 'eodhd' AND prior.resource_key = s.id AND prior.status = 'done'
+                 AND prior.manifest_id IS NOT NULL
                  AND d.day::date BETWEEN prior.from_date AND prior.to_date))
          ), grouped AS (
            SELECT resource_key, session_date, date_trunc('month', session_date) AS month_start,
