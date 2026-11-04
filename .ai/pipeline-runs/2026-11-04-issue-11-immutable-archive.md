@@ -43,8 +43,8 @@ Implement step 5 of the source-inventory and local EOD archive plan. Keep the cu
 
 ### Phase 2: Recovery
 
-- [ ] 2.1 Verify referenced files and quarantine unreferenced import files; block import when committed archive files are corrupt or missing.
-- [ ] 2.2 Add a local PostgreSQL-plus-files backup and restore command that verifies hashes before the archive is exposed.
+- [x] 2.1 Verify referenced files and quarantine unreferenced import files; block import when committed archive files are corrupt or missing. — 7b97d32
+- [x] 2.2 Add a local PostgreSQL-plus-files backup and restore command that verifies hashes before the archive is exposed. — 7b97d32
 
 ### Phase 3: Evidence and delivery
 
