@@ -1,4 +1,4 @@
-:host { display: block; min-height: 100vh; }
+app-root { display: block; min-height: 100vh; }
 .shell { max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; }
 header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .brand { font-size: 1.5rem; font-weight: 750; letter-spacing: -.04em; }
@@ -12,3 +12,16 @@ h2 { margin: 0 0 20px; font-size: 1.1rem; }
 .status p { margin: 0 0 12px; }
 .status strong { color: #146a4c; }
 .hint { color: #6a7685; font-size: .875rem; }
+.brand { color: #153e53; text-decoration: none; }
+nav { display: flex; gap: 18px; }
+nav a { color: #246f7a; }
+.data-page { margin-top: 78px; }
+.data-page > p { color: #4c5a6b; }
+.data-page .status { margin-top: 24px; }
+.filters { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 24px; }
+label { display: grid; gap: 8px; font-weight: 600; }
+select, button { font: inherit; padding: 8px 12px; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+th, td { padding: 10px; border-bottom: 1px solid #d9e2e7; vertical-align: top; }
+td code { overflow-wrap: anywhere; font-size: .75rem; }
+@media (max-width: 700px) { header { flex-wrap: wrap; } table { display: block; overflow-x: auto; } }

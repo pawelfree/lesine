@@ -25,6 +25,7 @@ services:
       PGDATABASE: lesine
       PGUSER: lesine
       PGPASSWORD: ${LESINE_DB_PASSWORD:?Set LESINE_DB_PASSWORD in .env}
+      LESINE_WEB_PORT: ${LESINE_WEB_PORT:-8080}
     depends_on:
       db: { condition: service_healthy }
     healthcheck:
@@ -39,11 +40,15 @@ services:
       context: .
       dockerfile: docker/node.Dockerfile
     command: ["node", "apps/worker/dist/main.js"]
-    environment: *database_environment
+    environment:
+      <<: *database_environment
+      EODHD_API_TOKEN: ${EODHD_API_TOKEN:-}
+      LESINE_EODHD_DAILY_BUDGET: ${LESINE_EODHD_DAILY_BUDGET:-2}
+      LESINE_RESPONSE_DIR: /data/provider-responses
     volumes:
       - provider_responses:/data/provider-responses
     depends_on:
-      db: { condition: service_healthy }
+      api: { condition: service_healthy }
     restart: unless-stopped
 
   web:
@@ -51,7 +56,7 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:${LESINE_WEB_PORT:-8080}:80"
     depends_on:
       api: { condition: service_healthy }
     restart: unless-stopped
