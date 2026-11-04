@@ -137,11 +137,18 @@ test('import checkpoints survive restart and stale leases cannot publish',
       await writeFile(join(bundle, 'responses', manifest.rows[0].relative_path as string), 'tampered');
       await assert.rejects(() => verifyBundle(bundle), /bundle_file_corrupt/);
       const orphan = join(directory, 'import', `${'a'.repeat(64)}.json`);
+      const staleTemp = join(directory, 'import', `.${randomUUID()}.tmp`);
+      const activeTemp = join(directory, 'import', `.${randomUUID()}.tmp`);
       await writeFile(orphan, '{}');
+      await writeFile(staleTemp, 'incomplete');
+      await writeFile(activeTemp, 'still being written');
       await utimes(orphan, new Date(0), new Date(0));
+      await utimes(staleTemp, new Date(0), new Date(0));
       await verifyArchive(pool, true);
       await assert.rejects(() => readFile(orphan), /ENOENT/);
-      assert.ok((await readdir(join(directory, 'quarantine'))).length > 0);
+      await assert.rejects(() => readFile(staleTemp), /ENOENT/);
+      assert.equal(await readFile(activeTemp, 'utf8'), 'still being written');
+      assert.equal((await readdir(join(directory, 'quarantine'))).length, 2);
 
       process.env.LESINE_EODHD_DAILY_BUDGET = '2';
       await pool.query("UPDATE source_daily_budget SET reserved_calls = 1 WHERE provider = 'eodhd' AND utc_day = (now() AT TIME ZONE 'UTC')::date");

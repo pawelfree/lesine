@@ -2,7 +2,7 @@
 
 Goals: Store immutable source responses and append-only bar revisions with a checked, recoverable backup bundle.
 Spec: [Local GPW history with coverage](../specs/2026-11-04-local-gpw-history-with-coverage.md)
-Status: done
+Status: in-progress
 
 ## Commit log
 
@@ -47,3 +47,8 @@ Remaining: final build, code review, ready PR and temporary-environment cleanup.
 Decision: retain `needs-qa` for the high-risk archive flow; native self-approval is unavailable on GitHub.
 Verification: build, unit tests, isolated PostgreSQL tests, old-schema backup and populated restore passed; review evidence is on PR #14.
 Remaining: human QA/merge decision after the ready PR; temporary test resources are removed by this run.
+
+2026-11-04 — Handle stale temporary response files in the PR review autofix loop.
+Decision: quarantine only known import temp names older than ten minutes; preserve fresh in-flight writes.
+Verification: npm build/test and isolated PostgreSQL integration passed.
+Remaining: publish the re-review, then restore the journal's done status.

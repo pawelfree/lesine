@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { copyFile, lstat, mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import type { Pool } from 'pg';
 
@@ -78,9 +78,12 @@ export async function verifyArchive(pool: Pool, quarantineOrphans = false): Prom
       throw error;
     });
     for (const name of names) {
-      if (!/^[a-f0-9]{64}\.json$/.test(name) || committed.has(name)) continue;
+      const response = /^[a-f0-9]{64}\.json$/.test(name);
+      const temporary = /^\.[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.tmp$/.test(name);
+      if ((!response && !temporary) || (response && committed.has(name))) continue;
       const source = resolve(directory, name);
-      if (Date.now() - (await stat(source)).mtimeMs < 600_000) continue;
+      const file = await lstat(source);
+      if (!file.isFile() || Date.now() - file.mtimeMs < 600_000) continue;
       const quarantine = resolve(responseRoot(), 'quarantine');
       await mkdir(quarantine, { recursive: true, mode: 0o700 });
       await rename(source, resolve(quarantine, `${name}.${randomUUID()}`));
