@@ -19,3 +19,7 @@ Remaining: finish the Data page, process rule, end-to-end smoke check and PR rev
 Decision: a finished request is not displayed as proof of archive completeness. Temporary PR Compose projects must be removed with their test volumes.
 Verification: Angular tests, full build and local HTTP status checks passed; browser screenshot access was unavailable.
 Remaining: review the diff, publish final PR state and remove the temporary test environment.
+
+2026-11-04 — Mark the planned implementation steps complete and link draft PR #13.
+Decision: actual EODHD account access and browser screenshots remain unverified; fake-provider and local HTTP checks supply the available evidence.
+Remaining: authoritative review, final PR labels and test-environment cleanup.
