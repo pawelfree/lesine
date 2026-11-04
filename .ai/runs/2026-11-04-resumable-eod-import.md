@@ -43,3 +43,7 @@ Remaining: finalize PR state and clean up its test environment.
 Decision: `needs-qa` remains because the UI changed and browser screenshot access was unavailable; no real EODHD entitlement is asserted.
 Verification: temporary `lesine-pr13` containers, network, test volumes and images were removed and confirmed absent; the main `lesine` project stayed running.
 Remaining: independent PR/QA gates and the separate canonical-revision task #11.
+
+2026-11-04 — Correct the PR's QA route after applying the owner's earlier preference to skip manual checks of the temporary Data view.
+Decision: replace `needs-qa` with `skip-qa`; keep automated UI, database and worker evidence and disclose that browser screenshots were unavailable.
+Remaining: independent code review and real EODHD entitlement/depth evidence; issue #11 supplies canonical revisions.
