@@ -26,6 +26,7 @@ services:
       PGUSER: lesine
       PGPASSWORD: ${LESINE_DB_PASSWORD:?Set LESINE_DB_PASSWORD in .env}
       LESINE_WEB_PORT: ${LESINE_WEB_PORT:-8080}
+      LESINE_EODHD_DAILY_BUDGET: ${LESINE_EODHD_DAILY_BUDGET:-2}
     depends_on:
       db: { condition: service_healthy }
     healthcheck:

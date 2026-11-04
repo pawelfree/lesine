@@ -149,7 +149,7 @@ async function probeCatalogUnlocked(pool: Pool, fetcher: typeof fetch): Promise<
     return;
   }
   const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
-  const dailyLimit = Number.isInteger(configured) && configured >= 1 && configured <= 20 ? configured : 2;
+  const dailyLimit = Number.isSafeInteger(configured) && configured >= 1 ? configured : 2;
   const sampleSymbols: Partial<Record<ListingState, string>> = {};
   for (const state of ['active', 'delisted'] as const) {
     const alreadyProbed = await pool.query(

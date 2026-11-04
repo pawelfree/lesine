@@ -1,18 +1,22 @@
 import { Injectable, Logger, Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+import { processImport } from './import-jobs.js';
 
 @Injectable()
 class WorkerProcess implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(WorkerProcess.name);
   private readonly pool = new Pool();
   private heartbeat?: NodeJS.Timeout;
+  private working = false;
 
   async onApplicationBootstrap(): Promise<void> {
     await this.pool.query('SELECT 1');
-    this.logger.log('Worker ready; no jobs configured yet');
+    this.logger.log('Worker ready for import jobs');
     this.heartbeat = setInterval(() => {
-      void this.pool.query('SELECT 1').catch((error: unknown) => this.logger.error(error));
-    }, 60_000);
+      if (this.working) return;
+      this.working = true;
+      void processImport(this.pool).catch((error: unknown) => this.logger.error(error)).finally(() => { this.working = false; });
+    }, 5_000);
   }
 
   async onModuleDestroy(): Promise<void> {

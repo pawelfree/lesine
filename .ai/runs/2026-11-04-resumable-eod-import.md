@@ -9,3 +9,8 @@ Status: in-progress
 2026-11-04 — Add the execution plan for issue #10 and this task journal.
 Decision: scope work to the durable EOD import task; immutable revisions and full coverage remain follow-up issues.
 Remaining: implement, verify, review and publish the import PR.
+
+2026-11-04 — Add durable import jobs, monthly bounded EOD requests, missing-range scheduling, lease fencing and quota handling.
+Decision: completed ranges are subtracted before scheduling; a backfill deliberately rechecks them. Original responses are retained with hashes; canonical revisions follow in #11.
+Verification: migration, overlapping-range API tests, worker concurrency/retry tests and full TypeScript build passed.
+Remaining: finish the Data page, process rule, end-to-end smoke check and PR review.

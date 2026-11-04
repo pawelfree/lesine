@@ -19,7 +19,7 @@ test('forward-only migrations initialize an empty database and do not rerun afte
         try {
           await database.onApplicationBootstrap();
           const versions = await database.pool.query('SELECT version FROM schema_migrations ORDER BY version');
-          assert.deepEqual(versions.rows.map((row) => row.version), ['001_source_inventory', '002_source_depth_sample']);
+          assert.deepEqual(versions.rows.map((row) => row.version), ['001_source_inventory', '002_source_depth_sample', '003_import_jobs']);
           const tables = await database.pool.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.source_depth_samples') AS samples");
           assert.equal(tables.rows[0].symbols, 'source_symbols');
           assert.equal(tables.rows[0].samples, 'source_depth_samples');
