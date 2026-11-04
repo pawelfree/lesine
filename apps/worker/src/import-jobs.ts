@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { link, mkdir, unlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Pool, PoolClient } from 'pg';
+import { parseEodBars, type EodBar } from './eod-bars.js';
 
 const sha = (raw: string): string => createHash('sha256').update(raw).digest('hex');
 export type JobStatus = 'queued' | 'running' | 'quota_wait' | 'paused' | 'failed' | 'done';
@@ -64,20 +65,54 @@ export async function renewLease(pool: Pool, lease: Lease): Promise<boolean> {
   return result.rowCount === 1;
 }
 
-export async function commitChunk(pool: Pool, lease: Lease, chunkId: string, responseHash: string, fileId: string): Promise<boolean> {
+export async function commitChunk(pool: Pool, lease: Lease, chunkId: string, responseHash: string,
+  relativePath: string, bars: EodBar[]): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     if (!await fenced(client, lease)) { await client.query('ROLLBACK'); return false; }
-    const chunk = await client.query<{ resource_key: string; from_date: Date | string }>(
-      `UPDATE import_chunks SET status = 'done', response_hash = $3, file_id = $4, error_code = NULL
-       WHERE id = $1 AND job_id = $2 AND status <> 'done'
-       RETURNING resource_key, from_date`, [chunkId, lease.id, responseHash, fileId],
+    const chunk = await client.query<{ resource_key: string; from_date: Date | string; market_scope: string }>(
+      `SELECT c.resource_key, c.from_date, j.market_scope FROM import_chunks c
+       JOIN import_jobs j ON j.id = c.job_id
+       WHERE c.id = $1 AND c.job_id = $2 AND c.status <> 'done' FOR UPDATE OF c`, [chunkId, lease.id],
     );
     if (!chunk.rows[0]) { await client.query('ROLLBACK'); return false; }
+    const { resource_key: resourceKey, from_date: fromDate, market_scope: marketScope } = chunk.rows[0];
+    const manifestId = randomUUID();
+    const dates = bars.map((bar) => bar.date).sort();
+    await client.query(
+      `INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider, data_class,
+       market_scope, min_date, max_date, row_count)
+       VALUES ($1, $2, $3, $4, 'eodhd', 'daily_bars', $5, $6, $7, $8)`,
+      [manifestId, chunkId, relativePath, responseHash, marketScope,
+        dates[0] ?? null, dates.at(-1) ?? null, bars.length],
+    );
+    for (const bar of bars) {
+      const revisionId = randomUUID();
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO daily_bar_revisions(id, provider, source_symbol_id, session_date, open, high, low, close,
+         adjusted_close, volume, fingerprint, first_manifest_id)
+         VALUES ($1, 'eodhd', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (provider, source_symbol_id, session_date, fingerprint) DO NOTHING RETURNING id`,
+        [revisionId, resourceKey, bar.date, bar.open, bar.high, bar.low, bar.close,
+          bar.adjustedClose, bar.volume, bar.fingerprint, manifestId],
+      );
+      const linkedId = inserted.rows[0]?.id ?? (await client.query<{ id: string }>(
+        `SELECT id FROM daily_bar_revisions WHERE provider = 'eodhd' AND source_symbol_id = $1
+         AND session_date = $2 AND fingerprint = $3`, [resourceKey, bar.date, bar.fingerprint],
+      )).rows[0]?.id;
+      if (!linkedId) throw new Error('revision_link_missing');
+      await client.query(`INSERT INTO raw_file_manifest_revisions(manifest_id, revision_id) VALUES ($1, $2)`,
+        [manifestId, linkedId]);
+    }
+    await client.query(
+      `UPDATE import_chunks SET status = 'done', response_hash = $2, file_id = $3,
+       manifest_id = $4, error_code = NULL WHERE id = $1`,
+      [chunkId, responseHash, relativePath, manifestId],
+    );
     await client.query(
       `UPDATE import_jobs SET cursor = $2, updated_at = now() WHERE id = $1`,
-      [lease.id, `${chunk.rows[0].resource_key}:${chunk.rows[0].from_date instanceof Date ? chunk.rows[0].from_date.toISOString().slice(0, 10) : chunk.rows[0].from_date}`],
+      [lease.id, `${resourceKey}:${fromDate instanceof Date ? fromDate.toISOString().slice(0, 10) : fromDate}`],
     );
     await client.query('COMMIT');
     return true;
@@ -109,7 +144,8 @@ async function retain(raw: string, hash: string): Promise<string> {
   try { await link(temp, target); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
   finally { await unlink(temp); }
-  return `${hash}.json`;
+  if (sha(await readFile(target, 'utf8')) !== hash) throw new Error('archive_file_corrupt');
+  return `import/${hash}.json`;
 }
 
 /** One bounded request per invocation; caller may poll again after the claim is released. */
@@ -155,6 +191,7 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
   url.searchParams.set('from', item.from_date);
   url.searchParams.set('to', item.to_date);
   let raw: string;
+  let bars: EodBar[];
   try {
     const response = await fetcher(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) });
     if (response.status === 429) {
@@ -167,15 +204,7 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
     }
     if (!response.ok) throw new Error('source_unavailable');
     raw = await response.text();
-    if (raw.length > 5_000_000) throw new Error('invalid_depth_payload');
-    let data: unknown;
-    try { data = JSON.parse(raw) as unknown; }
-    catch { throw new Error('invalid_depth_payload'); }
-    if (!Array.isArray(data) || !data.every((row) => row && typeof row === 'object' && typeof (row as { date?: unknown }).date === 'string'
-      && /^\d{4}-\d{2}-\d{2}$/.test((row as { date: string }).date)
-      && !Number.isNaN(Date.parse(`${(row as { date: string }).date}T00:00:00Z`))
-      && new Date(`${(row as { date: string }).date}T00:00:00Z`).toISOString().slice(0, 10) === (row as { date: string }).date
-      && (row as { date: string }).date >= item.from_date && (row as { date: string }).date <= item.to_date)) throw new Error('invalid_depth_payload');
+    bars = parseEodBars(raw, item.from_date, item.to_date);
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'invalid_depth_payload') {
       await changeStatus(pool, lease, 'failed', 'invalid_depth_payload', null);
@@ -185,8 +214,8 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
     return true;
   }
   const hash = sha(raw);
-  const fileId = await retain(raw, hash);
-  if (!await commitChunk(pool, lease, item.id, hash, fileId)) return true;
+  const relativePath = await retain(raw, hash);
+  if (!await commitChunk(pool, lease, item.id, hash, relativePath, bars)) return true;
   const pending = await pool.query(`SELECT 1 FROM import_chunks WHERE job_id = $1 AND status <> 'done' LIMIT 1`, [lease.id]);
   await changeStatus(pool, lease, pending.rowCount ? 'queued' : 'done', null, null);
   return true;

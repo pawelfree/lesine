@@ -42,38 +42,50 @@ test('import checkpoints survive restart and stale leases cannot publish',
       const [first, concurrent] = await Promise.all([claimJob(pool), claimJob(pool)]);
       assert.equal(first?.id, jobId);
       assert.equal(concurrent, null);
-      assert.equal(await commitChunk(pool, first!, chunk1, 'first', 'first.json'), true);
+      const firstHash = createHash('sha256').update('first').digest('hex');
+      const secondHash = createHash('sha256').update('second').digest('hex');
+      assert.equal(await commitChunk(pool, first!, chunk1, firstHash, `import/${firstHash}.json`, []), true);
       await pool.query("UPDATE import_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1", [jobId]);
       const reclaimed = await claimJob(pool);
       assert.equal(reclaimed?.id, jobId);
       assert.notEqual(reclaimed?.token, first?.token);
-      assert.equal(await commitChunk(pool, first!, chunk2, 'stale', 'stale.json'), false);
-      assert.equal(await commitChunk(pool, reclaimed!, chunk2, 'second', 'second.json'), true);
+      assert.equal(await commitChunk(pool, first!, chunk2, firstHash, `import/${firstHash}.json`, []), false);
+      assert.equal(await commitChunk(pool, reclaimed!, chunk2, secondHash, `import/${secondHash}.json`, []), true);
       const saved = await pool.query('SELECT cursor, status FROM import_jobs WHERE id = $1', [jobId]);
       assert.equal(saved.rows[0].status, 'running');
       assert.match(saved.rows[0].cursor as string, new RegExp(symbolId));
       const chunks = await pool.query('SELECT status, response_hash FROM import_chunks WHERE job_id = $1 ORDER BY from_date', [jobId]);
-      assert.deepEqual(chunks.rows.map((row) => row.response_hash), ['first', 'second']);
+      assert.deepEqual(chunks.rows.map((row) => row.response_hash), [firstHash, secondHash]);
 
-      // Another fresh lease handles a provider success and retains the original response.
-      await pool.query("UPDATE import_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1", [jobId]);
-      await pool.query("UPDATE import_chunks SET status = 'queued', response_hash = NULL, file_id = NULL WHERE id = $1", [chunk2]);
+      // A separate job handles provider success; committed chunks stay immutable.
+      await pool.query("UPDATE import_jobs SET status = 'done', lease_token = NULL, lease_expires_at = NULL WHERE id = $1", [jobId]);
+      const providerJob = randomUUID();
+      const providerChunk = randomUUID();
+      extraJobs.push(providerJob);
+      await pool.query(
+        `INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date, scope_hash, mode)
+         VALUES ($1, 'eodhd', 'all', ARRAY['daily_bars'], '2025-02-01', '2025-02-28', $2, 'backfill')`,
+        [providerJob, randomUUID()],
+      );
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date)
+        VALUES ($1, $2, $3, '2025-02-01', '2025-02-28')`, [providerChunk, providerJob, symbolId]);
       let requests = 0;
       const fakeFetch: typeof fetch = async (input) => {
         requests += 1;
         const url = new URL(String(input));
         assert.equal(url.searchParams.get('from'), '2025-02-01');
-        return new Response(JSON.stringify([{ date: '2025-02-03', open: 1, close: 2 }]), { status: 200 });
+        return new Response(JSON.stringify([{ date: '2025-02-03', open: 1, high: 3,
+          low: 1, close: 2, adjusted_close: 2, volume: 100 }]), { status: 200 });
       };
       await processImport(pool, fakeFetch);
       assert.equal(requests, 1);
-      const completed = await pool.query('SELECT status, response_hash, file_id FROM import_chunks WHERE id = $1', [chunk2]);
+      const completed = await pool.query('SELECT status, response_hash, file_id FROM import_chunks WHERE id = $1', [providerChunk]);
       assert.equal(completed.rows[0].status, 'done');
-      const raw = await readFile(join(directory, 'import', completed.rows[0].file_id as string));
+      const raw = await readFile(join(directory, completed.rows[0].file_id as string));
       assert.equal(createHash('sha256').update(raw).digest('hex'), completed.rows[0].response_hash);
       await processImport(pool, fakeFetch);
       assert.equal(requests, 1, 'completed range must not be fetched again');
-      assert.equal((await pool.query('SELECT status FROM import_jobs WHERE id = $1', [jobId])).rows[0].status, 'done');
+      assert.equal((await pool.query('SELECT status FROM import_jobs WHERE id = $1', [providerJob])).rows[0].status, 'done');
 
       const addJob = async (): Promise<string> => {
         const id = randomUUID();
@@ -118,6 +130,7 @@ test('import checkpoints survive restart and stale leases cannot publish',
       await processImport(pool, async () => { throw new Error('empty job must not contact provider'); });
       assert.equal(await getStatus(empty), 'done');
     } finally {
+      await pool.query('TRUNCATE raw_file_manifest_revisions, daily_bar_revisions, raw_file_manifests CASCADE');
       for (const id of extraJobs) {
         await pool.query('DELETE FROM import_chunks WHERE job_id = $1', [id]);
         await pool.query('DELETE FROM import_jobs WHERE id = $1', [id]);
