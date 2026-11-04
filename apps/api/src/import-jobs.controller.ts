@@ -108,7 +108,9 @@ export class ImportJobsController {
 
   @Post(':id/resume')
   @HttpCode(202)
-  async resume(@Param('id') id: string): Promise<{ data: { id: string; status: string; cursor: string | null } }> {
+  async resume(@Param('id') id: string, @Body() body: unknown): Promise<{ data: { id: string; status: string; cursor: string | null } }> {
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length > 0)
+      throw error('invalid_request', 'Wznowienie nie przyjmuje danych.', 400);
     if (!idPattern.test(id)) throw error('not_found', 'Nie znaleziono importu.', 404);
     const result = await this.database.pool.query<{ cursor: string | null }>(
       `UPDATE import_jobs SET status = 'queued', error_code = NULL, retry_after_utc = NULL,

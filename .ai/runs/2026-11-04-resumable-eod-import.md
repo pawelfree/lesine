@@ -23,3 +23,8 @@ Remaining: review the diff, publish final PR state and remove the temporary test
 2026-11-04 — Mark the planned implementation steps complete and link draft PR #13.
 Decision: actual EODHD account access and browser screenshots remain unverified; fake-provider and local HTTP checks supply the available evidence.
 Remaining: authoritative review, final PR labels and test-environment cleanup.
+
+2026-11-04 — Tighten the import boundary: reject unexpected resume input, test migration rollback and preserve missing days across overlapping requests.
+Decision: keep the source response archive and cursor separate from later normalized revisions; do not claim market completeness on job completion.
+Verification: full build and unit suite passed; isolated PostgreSQL migration, API and fake-provider worker tests passed.
+Remaining: publish review evidence and labels, close the draft state, remove PR test resources.

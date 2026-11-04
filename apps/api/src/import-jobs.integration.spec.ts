@@ -34,9 +34,9 @@ test('job creation materializes bounded ranges and rejects overlapping active sc
       const status = await controller.get(jobId);
       assert.equal(status.data.total_chunks, 2);
       assert.equal(status.data.completed_chunks, 0);
-      await assert.rejects(() => controller.resume(jobId!), (error: unknown) => (error as { status?: number }).status === 409);
+      await assert.rejects(() => controller.resume(jobId!, {}), (error: unknown) => (error as { status?: number }).status === 409);
       await pool.query("UPDATE import_jobs SET status = 'paused' WHERE id = $1", [jobId]);
-      const resumed = await controller.resume(jobId);
+      const resumed = await controller.resume(jobId, {});
       assert.equal(resumed.data.status, 'queued');
       assert.equal((await controller.get(jobId)).data.total_chunks, 2);
       await pool.query("UPDATE import_chunks SET status = 'done' WHERE job_id = $1", [jobId]);
@@ -47,6 +47,8 @@ test('job creation materializes bounded ranges and rejects overlapping active sc
       );
       assert.deepEqual(missing.rows, [{ start: '2025-01-10', finish: '2025-01-14' }, { start: '2025-02-11', finish: '2025-02-15' }]);
       await assert.rejects(() => controller.create({ ...request, from_date: '2025-02-30' }),
+        (error: unknown) => (error as { status?: number }).status === 400);
+      await assert.rejects(() => controller.resume(jobId!, { api_token: 'must-not-be-accepted' }),
         (error: unknown) => (error as { status?: number }).status === 400);
     } finally {
       if (secondId) {
