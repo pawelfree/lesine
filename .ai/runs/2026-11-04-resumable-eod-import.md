@@ -33,3 +33,8 @@ Remaining: publish review evidence and labels, close the draft state, remove PR 
 Decision: a failed job can resume only when its scope has no other active job; the API maps that conflict to 409.
 Verification: configured build, unit tests, fresh migration/rollback test and isolated PostgreSQL worker tests passed.
 Remaining: update PR review state and labels, remove temporary Compose resources.
+
+2026-11-04 — Finish empty jobs without a provider key or network call and add the regression case.
+Decision: completion of already-fetched work requires no source credential; only pending chunks do.
+Verification: full build/test suite and isolated worker integration test passed.
+Remaining: finalize PR state and clean up its test environment.

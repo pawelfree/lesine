@@ -116,10 +116,6 @@ async function retain(raw: string, hash: string): Promise<string> {
 export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): Promise<boolean> {
   const lease = await claimJob(pool);
   if (!lease) return false;
-  const token = process.env.EODHD_API_TOKEN;
-  if (!token) { await changeStatus(pool, lease, 'paused', 'missing_credential', null); return true; }
-  const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
-  const budget = Number.isSafeInteger(configured) && configured >= 1 ? configured : 2;
   const chunk = await pool.query<{ id: string; resource_key: string; provider_symbol: string; from_date: string; to_date: string }>(
     `SELECT c.id, c.resource_key, s.provider_symbol,
        to_char(c.from_date, 'YYYY-MM-DD') AS from_date,
@@ -129,6 +125,10 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
   );
   const item = chunk.rows[0];
   if (!item) { await changeStatus(pool, lease, 'done', null, null); return true; }
+  const token = process.env.EODHD_API_TOKEN;
+  if (!token) { await changeStatus(pool, lease, 'paused', 'missing_credential', null); return true; }
+  const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
+  const budget = Number.isSafeInteger(configured) && configured >= 1 ? configured : 2;
   if (!await renewLease(pool, lease)) return true;
   // Reservation and attempt increment share a transaction. Catalog probes use the same budget table.
   const client = await pool.connect();

@@ -108,6 +108,10 @@ test('import checkpoints survive restart and stale leases cannot publish',
       const noKey = await addJob();
       await processImport(pool, async () => { throw new Error('missing key must block provider request'); });
       assert.equal(await getStatus(noKey), 'paused');
+      const empty = await addJob();
+      await pool.query('DELETE FROM import_chunks WHERE job_id = $1', [empty]);
+      await processImport(pool, async () => { throw new Error('empty job must not contact provider'); });
+      assert.equal(await getStatus(empty), 'done');
     } finally {
       for (const id of extraJobs) {
         await pool.query('DELETE FROM import_chunks WHERE job_id = $1', [id]);
