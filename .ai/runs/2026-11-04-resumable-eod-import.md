@@ -2,7 +2,7 @@
 
 Goals: Deliver durable quota-aware EODHD import jobs, safe restart and lease fencing, and visible job progress.
 Spec: [Local GPW history with coverage](../specs/2026-11-04-local-gpw-history-with-coverage.md)
-Status: in-progress
+Status: done
 
 ## Commit log
 
@@ -38,3 +38,8 @@ Remaining: update PR review state and labels, remove temporary Compose resources
 Decision: completion of already-fetched work requires no source credential; only pending chunks do.
 Verification: full build/test suite and isolated worker integration test passed.
 Remaining: finalize PR state and clean up its test environment.
+
+2026-11-04 — Finish ready PR #13 with review evidence, labels and a documented browser/account-access limit.
+Decision: `needs-qa` remains because the UI changed and browser screenshot access was unavailable; no real EODHD entitlement is asserted.
+Verification: temporary `lesine-pr13` containers, network, test volumes and images were removed and confirmed absent; the main `lesine` project stayed running.
+Remaining: independent PR/QA gates and the separate canonical-revision task #11.
