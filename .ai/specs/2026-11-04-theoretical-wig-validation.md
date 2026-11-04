@@ -83,11 +83,11 @@ No positive return or drawdown reduction is an acceptance criterion. The first o
 
 For a protocol/version/snapshot and chosen eligible period, reserve the latest 25% of eligible GPW sessions as the evaluation interval, provided that interval contains at least 252 sessions. The boundary is fixed and persisted **before** displaying performance for the reserved interval. If the minimum is not met, the run can show an exploratory report but cannot claim an untouched evaluation. Exploration on the earlier interval may compare protocol variants; all variants and their timestamps remain logged. The first time the owner opens the reserved result, the run records `holdout_revealed_at`; subsequent formula, protocol or data changes that use that same interval are labeled exploratory relative to it. The exposure ledger is keyed by the stable `IndicatorDefinition` identity and calendar interval, across WIG and ETF test types, rather than by run id alone: revealing an overlapping WIG evaluation span consumes that overlap's untouched status for a later ETF run of the same indicator. This is a platform audit of what was viewed here, not a claim that the owner had no prior market knowledge.
 
-A run identity includes indicator-definition hash, policy hash, protocol hash, engine/calculation versions, archive snapshot id, requested date span and timing-rule id. Replaying the same identity produces bit-for-bit equivalent normalized event/metric output and returns the existing run or an explicitly linked repeat, never an overwrite. A source revision yields a new snapshot and run, while the old report remains available with a stale-source notice. Save each session's source score/result ref, target allocation, pre/post-trade NAV, trade notional, cost, benchmark NAV and gap/timing flags in a content-addressed run artifact, with its hash in metadata.
+A run identity includes indicator-definition hash, policy hash, protocol hash, engine/calculation versions, archive snapshot id, requested date span and timing-rule id. Replaying the same identity produces bit-for-bit equivalent normalized event/metric output and returns the existing run or an explicitly linked repeat, never an overwrite. A source revision yields a new snapshot and run, while the old report remains available with a stale-source notice. Save each session's source score/result ref, target allocation, pre/post-trade NAV, trade notional, cost, benchmark NAV and gap/timing flags as immutable PostgreSQL rows linked to the run; store a hash of their canonical ordered serialization in run metadata.
 
 ## 📝 Data Model
 
-The confirmed App Spec owns `BacktestProtocolVersion` and `BacktestRun`. This spec adds `BacktestSession` as an immutable per-session audit artifact and `HoldoutAccess` as a disclosure record. It references but does not own `IndicatorVersion`, `SignalPolicyVersion` or `DataSnapshot`. No existing database schema exists yet; this is the planned schema of the local SQLite metadata store plus immutable columnar session artifacts.
+The confirmed App Spec owns `BacktestProtocolVersion` and `BacktestRun`. This spec adds `BacktestSession` as an immutable per-session audit record and `HoldoutAccess` as a disclosure record. It references but does not own `IndicatorVersion`, `SignalPolicyVersion` or `DataSnapshot`. No existing database schema exists yet; this is the planned PostgreSQL schema under the accepted [technology decision](research/decisions/2026-11-04-platform-technology.md).
 
 ```mermaid
 flowchart LR
@@ -113,11 +113,11 @@ flowchart LR
 | Record | Key fields and constraints | Lifecycle |
 |---|---|---|
 | `BacktestProtocolVersion` | id, schema_version, test_type, canonical_json, configuration_hash, created_at; unique hash | Validated once, never mutated. The ETF spec adds typed basket configuration within the same versioned JSON contract. |
-| `BacktestRun` | id, test_type, version_id, policy_version_id, protocol_version_id, snapshot_id, engine_version, period_start/end, run_identity_hash, status, artifact_hash, created_at, completed_at, limitation_flags; unique run identity hash | Pending → complete/blocked/failed; only terminal metadata appended atomically; reruns/corrections are new linked runs. |
-| `BacktestSession` | run_id, GPW date, score/result ref, availability evidence, target allocation, execution date, WIG level ref, pre/post NAV, trade notional, costs by scenario, benchmark NAV, gap flags; unique `(run_id, date)` | Immutable artifact rows committed with a completed run, not partial results. |
+| `BacktestRun` | id, test_type, version_id, policy_version_id, protocol_version_id, snapshot_id, engine_version, period_start/end, run_identity_hash, status, session_set_hash, created_at, completed_at, limitation_flags; unique run identity hash | Pending → complete/blocked/failed; terminal metadata and session rows commit atomically; reruns/corrections are new linked runs. |
+| `BacktestSession` | run_id, GPW date, score/result ref, availability evidence, target allocation, execution date, WIG level ref, pre/post NAV, trade notional, costs by scenario, benchmark NAV, gap flags; unique `(run_id, date)` | Immutable PostgreSQL rows committed with a completed run, not partial results. |
 | `HoldoutAccess` | id, run_id, indicator_id, interval_start/end, revealed_at, access_kind, actor=`owner` | Append-only cross-test record of first and later display/export of reserved results. Any overlap for the same indicator removes the untouched claim on those dates, regardless of protocol or test type. |
 
-Protocol and result files contain no credentials. The single-owner loopback access rule from the App Spec applies. A failed job leaves a blocked/failed metadata record and no published partial performance artifact. SQLite commits the artifact manifest only after checksum verification. Snapshot files referenced by any run remain retained.
+Protocol and result rows contain no credentials. The single-owner loopback access rule from the App Spec applies. A failed worker job leaves a blocked/failed run record and no published partial performance rows. PostgreSQL commits all session rows, summary metrics and a canonical content hash with the terminal run status in one transaction. Archive revisions referenced by any run remain retained; original source-response files remain available for provenance verification.
 
 ## 📝 API Contracts
 
@@ -167,10 +167,10 @@ Product-brief rules R01–R03, D01–D06 and N01–N02 remain in force. The conf
 ## 📋 Implementation Plan
 
 1. Persist immutable protocol versions with canonical JSON/hash and field-path validation; verify invalid cost/holdout/benchmark combinations cannot create a run.
-2. Add run identity, artifact manifest and statuses; verify identical inputs reuse a run and a source correction creates a distinct linked run.
+2. Add run identity, PostgreSQL session-set hash and statuses; verify identical inputs reuse a run and a source correction creates a distinct linked run.
 3. Integrate the daily evaluator in historical-cutoff mode and archive snapshot references; verify late values/revisions are excluded and timing assumptions are recorded.
 4. Build GPW-session eligibility and holdout partitioning before any report is shown; verify 25%/252 minimum and a date range lacking enough history cannot claim untouched status.
 5. Implement theoretical WIG/cash accounting, next-session close exposure changes and 0/10/30 bp one-way cost paths; verify initial entry, no same-close signal benefit, missing-signal restriction and benchmark date alignment on small hand-computed fixtures.
 6. Compute NAV series, return, CAGR, maximum drawdown, turnover, costs and benchmark differences; verify deterministic rerun output and no dividend double count on the WIG index level.
-7. Add crash-safe saved session artifacts and correction lineage; verify a restart never publishes a partial report and an old snapshot/report remains readable.
+7. Add crash-safe PostgreSQL session records and correction lineage; verify a restart never publishes a partial report and an old snapshot/report remains readable.
 8. Build Tests WIG setup, progress, report, coverage and holdout reveal states; verify text/table alternatives, visible limitations and that a later variant cannot recover the untouched label.

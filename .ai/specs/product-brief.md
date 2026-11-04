@@ -3,14 +3,12 @@
 - Date: 2026-11-04
 - Mode: own; Owner: product owner (requester); Pass: full
 - Evidence basis: owner choices, a data-source proposal, and the owner-provided excerpt of Albert Rokicki's article in this conversation. These establish intent, not predictive performance; no independent backtest or observed user problem is available.
-- Coverage: 20 claims — 18 sourced (interview 0, data 0, document 18, product 0, benchmark 0), 0 synthetic, 2 assumed; 3 entries on the collection plan
-- Synthetic hypotheses outside Coverage: 0
-- Definition of Ready signed by: not yet; ready for: data feasibility and experiment design, not implementation planning
+- Current delivery state: the App Spec and four feature specs are written; the GPW archive spec has a `go` pre-implementation audit. Provider access and rights remain a real-data acceptance gate.
 - Sources: conversation on 2026-11-04 (including the owner-provided article excerpt and signal table); `/Users/paweldudek/Downloads/barometro_gieldowy_pw_fonti_dati.md`; `.ai/specs/research/decisions/D03-signal-bands.md`; [FRED API](https://fred.stlouisfed.org/docs/api/fred/series_observations.html); [EODHD commodities API](https://eodhd.com/financial-apis/commodities-api-historical-prices-for-oil-gas-metals-agriculture-beta)
 
 ## Decision summary
 
-The owner wants a personal platform for testing investment hypotheses and, eventually, multiple indicators. Start with one original barometer for the broad Polish stock market. After each GPW session it will calculate a 0–100 score, show a posture and suggested equity allocation from D03, and apply a signal no earlier than the next session (D01–D05). The score is not a calibrated probability. The first proposed test simulates daily signals over history, measuring drawdown, return and turnover against fixed market exposure (D06). Formula, data feasibility, benchmark implementation and success threshold remain open (Q01–Q03). The owner's pasted article reports 2013 results for its author's indicator; they do not validate this new one.
+The owner wants a personal platform for testing investment hypotheses and, eventually, multiple indicators. Start with one original barometer for the broad Polish stock market. After each GPW session it will calculate a 0–100 score, show a posture and suggested equity allocation from D03, and apply a signal no earlier than the next session (D01–D05). The score is not a calibrated probability. The v0 formula and WIG/ETF test protocols are defined in the App Spec and feature specs; provider bindings and historical coverage still require evidence. The first test compares daily signals with fixed market exposure, reporting drawdown, return and turnover (D06). The owner's pasted article reports 2013 results for its author's indicator; they do not validate this new one.
 
 ## Vision
 
@@ -28,7 +26,7 @@ The owner wants a personal platform for testing investment hypotheses and, event
 ## Product and how it stands out
 
 - One original barometer first; more indicators and historical comparisons later. `[DOCUMENT]` owner, conversation on 2026-11-04.
-- Proposed processing path from the supplied diagram: EODHD as primary market-data source, plus FRED and U.S. Treasury connectors → historical time-series store → feature engineering → composite market-risk barometer and regime-change detection. This is a design proposal to validate, not an adopted technical decision. `[DOCUMENT]` supplied data proposal §4.
+- Current technical direction: source adapters → PostgreSQL market history and provenance → versioned DSL features and barometer → historical validation. The accepted [technology decision](research/decisions/2026-11-04-platform-technology.md) defines Angular, NestJS, TypeScript worker and local Docker Compose. EODHD is the first source to verify; FRED and U.S. Treasury bindings remain subject to source checks.
 - Differentiation and competitor comparison: deferred; no product benchmark checked.
 
 | reference | what it does well | where it falls short for our users | checked on | link |
@@ -36,8 +34,8 @@ The owner wants a personal platform for testing investment hypotheses and, event
 
 ## Goals and success criteria
 
-- First test: compare drawdowns and returns of D03's allocation scheme against fixed WIG exposure. The owner accepted drawdown reduction as a first question to test, not a permanent optimization goal; the daily simulation protocol remains a proposal. `[DOCUMENT]` conversation on 2026-11-04.
-- Period, tradable market proxy, costs, baseline allocation and continuation threshold: open (Q02).
+- First test: compare drawdowns and returns of D03's allocation scheme against fixed WIG exposure. The owner accepted drawdown reduction as a first question to test, not a permanent optimization goal; the simulation protocol is now specified in the WIG and ETF feature specs. `[DOCUMENT]` conversation on 2026-11-04 and App Spec.
+- Historical period, WIG/ETF test types, execution timing, costs and baseline are specified in the App Spec and feature specs. The owner will decide whether results justify further work after seeing the first valid test (Q02).
 
 ## Scope
 
@@ -56,8 +54,8 @@ The owner wants a personal platform for testing investment hypotheses and, event
 ## Key flows
 
 - Current workflow: unknown.
-- Proposed pipeline: ingest market and macro data from EODHD, FRED and U.S. Treasury → retain raw observations with frequency and publication timestamps → calculate candidate features (5/20/60-session changes, trends, spreads and liquidity) → combine them into the market-risk score and detect regime changes. `[DOCUMENT]` supplied data proposal §4.
-- Proposed use: calculate after GPW close → show score and D03 posture → apply allocation changes no earlier than next session → simulate the portfolio day by day. Showing raw inputs is still a proposal.
+- Data flow: ingest verified market and macro series → retain source revisions, observation dates and availability evidence → evaluate the versioned v0 definition → publish the score and D03 posture → run the versioned WIG and ETF tests. Exact data bindings remain an evidence gate.
+- Owner flow: inspect score, source inputs and D03 posture after GPW close → apply a signal no earlier than the next session → compare saved daily simulations and their limitations.
 
 ## Business rules
 
@@ -71,7 +69,7 @@ The owner wants a personal platform for testing investment hypotheses and, event
 
 | Id | We are not building | Why | Owner | Status | Review by | Required path to change | Source | Supersedes |
 |---|---|---|---|---|---|---|---|---|
-| N01 | Automated trade execution now | Only signals were requested. | Product owner | proposal | Before spec | Owner-approved superseding row | `[DOCUMENT]` conversation | none |
+| N01 | Automated trade execution now | Only signals were requested. | Product owner | active | After first validation | Owner-approved superseding row | `[DOCUMENT]` conversation and App Spec | none |
 | N02 | Faithful copy of PW Barometer | Formula unavailable; original score chosen. | Product owner | active | Before spec | Owner-approved superseding row | `[DOCUMENT]` supplied proposal §6; conversation | none |
 
 ## Decisions
@@ -89,12 +87,12 @@ The owner wants a personal platform for testing investment hypotheses and, event
 
 | Id | Assumption | Importance | Evidence today | If false | Smallest test | Owner | By when | Result |
 |---|---|---|---|---|---|---|---|---|
-| A01 | Candidate series and the proposed feature pipeline yield a useful score. `[ASSUMPTION]` supplied proposal, no tested formula. | high | None | Revise or abandon indicator. | Verify data and timestamps; predefine formula; simulate daily with costs and a later untouched test period against fixed exposure. | Product owner | Before implementation | untested |
-| A02 | Inputs support end-of-session calculation. `[ASSUMPTION]` supplied proposal §5. | high | [EODHD docs](https://eodhd.com/financial-apis/commodities-api-historical-prices-for-oil-gas-metals-agriculture-beta) say metals are typically monthly. | Change series or cadence. | Verify symbols, frequencies, lag, revisions and access. | Product owner | Before spec | untested |
+| A01 | The accepted v0 formula yields a useful score. `[ASSUMPTION]` no historical validation yet. | high | None | Revise or abandon indicator. | Verify source data and timestamps; simulate the fixed formula with costs and a later untouched test period against fixed exposure. | Product owner | After first valid test | untested |
+| A02 | Required source inputs support the 08:30 cutoff. `[ASSUMPTION]` source bindings unverified. | high | [EODHD docs](https://eodhd.com/financial-apis/commodities-api-historical-prices-for-oil-gas-metals-agriculture-beta) describe monthly metals data. | Change source binding or block activation. | Verify symbols, frequencies, release lag, revisions, rights and access. | Product owner | Before indicator activation | untested |
 
 ## Kill criteria
 
-Pending Q02's benchmark, costs and stop rule.
+No numeric performance threshold is predeclared. The first valid WIG and ETF reports show return, drawdown, turnover and limitations; the owner decides whether to revise or continue the hypothesis after reviewing them.
 
 ## Hypotheses to test
 
@@ -104,29 +102,29 @@ No synthetic walkthrough run.
 
 | Id | Question | Blocking | Who can answer | Status |
 |---|---|---|---|---|
-| Q01 | Which predeclared formula and inputs produce the score without leakage? | Yes: indicator spec. | Owner and researcher | open |
-| Q02 | Which historical period, tradable market proxy, baseline allocation, costs and result justify continuing? | Yes: validation verdict. | Owner and researcher | open |
-| Q03 | Which exact series, frequencies and publication timestamps are available from EODHD, FRED and U.S. Treasury for the proposed 5/20/60-session features? | Yes: data design. | Provider and researcher | open |
-| Q04 | What are “speculative positions” in D03's two defensive bands? | Yes: those signal actions. | Product owner | open |
+| Q01 | Which predeclared formula and inputs produce the score without leakage? | Resolved in App Spec and daily-barometer spec; exact provider bindings remain Q03. | Owner and researcher | closed 2026-11-04 |
+| Q02 | Do the first validated WIG and ETF results justify continuing or revising the hypothesis? | No: decide after the first valid reports; protocol is specified. | Product owner | open after validation |
+| Q03 | Which exact source series, frequencies, publication timestamps, historical depth and rights are available for required v0 inputs? | Yes: source activation and data-dependent acceptance. | Provider and researcher | open |
+| Q04 | What are “speculative positions” in D03's two defensive bands? | Resolved for v1: show posture text; no holdings tagging or automatic closing. | Product owner | closed 2026-11-04 |
 | Q05 | Which posture owns a score exactly on each shared band boundary? | Resolved: higher band; 75 stays in 70–75. | Product owner | closed 2026-11-04 |
 
 ## Definition of Ready addendum (own)
 
-Direction, market, bands and cadence are confirmed. Method, data feasibility and evaluation rule are open; an observed problem and measured benefit are absent. Ready for data research and experiment design, not a delivery backlog.
+Direction, market, bands, cadence, v0 method and test protocols are confirmed in the App Spec. Provider feasibility and measured investment benefit remain open. The archive specification is ready for implementation with its source-rights gate; no positive performance claim is implied.
 
 ## Collection plan
 
 ### What real investing decision should the barometer improve?
 
-- Blocks implementation readiness, not the data feasibility study. The owner can later describe a recent decision, current information and consequence.
+- Helps interpret eventual investment value; it does not block the archive implementation. The owner can later describe a recent decision, current information and consequence.
 - Template: `.ai/specs/research/templates/interview-note.md`.
 
 ### Can the feeds supply point-in-time inputs at GPW close?
 
-- Blocks series selection. Researcher checks entitlement, frequency, release timing, revisions and history; owner reviews before spec.
+- Blocks indicator activation and real-data archive acceptance. Researcher checks entitlement, frequency, release timing, revisions and history before source bindings are approved.
 - Template: `.ai/specs/research/templates/data-request.md`.
 
 ### How should long-term signals be evaluated?
 
-- Blocks first verdict. Owner and researcher predefine daily simulation rules, market proxy, benchmark, costs, untouched test period, metrics and stop rule before seeing test results.
+- The simulation protocol is specified. The first verdict awaits valid WIG and ETF results; the owner then decides whether the hypothesis merits further work.
 - Template: `.ai/specs/research/templates/decision-record.md`.

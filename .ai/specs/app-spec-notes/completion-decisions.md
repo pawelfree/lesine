@@ -1,6 +1,6 @@
-# App Spec completion decisions — proposed defaults for review
+# App Spec completion decisions
 
-These decisions complete the product contract without claiming that provider access or predictive performance has been verified. They are proposed by the assistant for the owner's Phase 5 confirmation; changing a default later creates a new version, not a rewrite of a saved run.
+The owner accepted these first-version defaults with the App Spec. Provider access and predictive performance remain unverified. Changing a default later creates a new version, not a rewrite of a saved run.
 
 ## First indicator readiness
 
@@ -21,7 +21,7 @@ These decisions complete the product contract without claiming that provider acc
 
 ## Local application base
 
-Lesine is greenfield. The App Spec assumes one local process with a browser interface, loopback-only access, a local metadata store and local columnar time-series files, plus scheduled/import jobs. Python is the proposed calculation/runtime language because the shared DSL interpreter and historical research live in one process; exact web framework and storage libraries belong to feature specs. No OpenMercato software platform is assumed. All §4 capability gaps are therefore new app work unless a selected dependency is verified in a later feature spec.
+Lesine is greenfield. The accepted [technology decision](../research/decisions/2026-11-04-platform-technology.md) defines Angular UI, loopback NestJS API, separate TypeScript worker, PostgreSQL for canonical market history and metadata, checksummed original provider-response files, and local Docker Compose operation. Scheduled work missed while the Mac is off is reconciled on startup and marked late or blocked; the historical 08:30 as-of cutoff is unchanged. OpenMercato is the planning method. All §4 capability gaps are new app work unless a selected dependency is verified in a later feature spec.
 
 ## Remaining external gates
 

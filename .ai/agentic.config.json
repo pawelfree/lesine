@@ -125,7 +125,7 @@
     "coordinationRoot": null
   },
   "paths": {
-    "runs": ".ai/runs",
+    "runs": ".ai/pipeline-runs",
     "analysis": ".ai/analysis",
     "specs": ".ai/specs",
     "dataModel": ".ai/data-model",

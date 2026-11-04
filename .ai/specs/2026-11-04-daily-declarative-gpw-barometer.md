@@ -25,7 +25,7 @@ This feature delivers daily indicator calculation and display. Historical portfo
 
 ## 📝 Architecture
 
-The **Indicator research** module owns definition registration, validation, activation, calculation and results. It reads the Market archive's immutable snapshot interface described in [Local GPW history with coverage](2026-11-04-local-gpw-history-with-coverage.md), never calls an external data source inside an operator. A scheduler enumerates GPW sessions and creates one cutoff attempt per active indicator and session. The evaluator, policy mapper and read API share one result store. The next feature's backtest invokes the same evaluator with historical cutoffs; it cannot use a separate implementation of the formula.
+The **Indicator research** module owns definition registration, validation, activation, calculation and results. The accepted [technology decision](research/decisions/2026-11-04-platform-technology.md) places its TypeScript evaluator in a separate NestJS worker; Angular reads results through the NestJS API. The evaluator reads the Market archive's immutable PostgreSQL snapshot interface described in [Local GPW history with coverage](2026-11-04-local-gpw-history-with-coverage.md), never calls an external data source inside an operator. A scheduler enumerates GPW sessions and creates one cutoff attempt per active indicator and session; startup reconciliation creates missed attempts after powered-off intervals, with actual publication time and `late` status. The evaluator, policy mapper and read API share one result store. The next feature's backtest invokes the same evaluator with historical cutoffs; it cannot use a separate implementation of the formula.
 
 ```mermaid
 flowchart LR
@@ -49,7 +49,7 @@ flowchart LR
 
 A document has `schema_version`, `name`, `cadence`, `inputs`, `universe`, `nodes`, `output_node`, `output_range` and `missing_data`. `cadence` is `gpw_after_close`; `missing_data` is `block` for v0. Each named input declares logical series, expected `unit`, `frequency`, maximum GPW-session age, and a *versioned binding reference* to an archive series. Credentials and provider fetch instructions are forbidden. `universe` declares market segment, instrument kind, dated eligibility and minimum history; this is a data query contract, not today's ticker list.
 
-`nodes` form an acyclic graph. Version 1 allowlists only the operations needed by the accepted v0 graph: `source`, `lag`, `log_ratio`, `negate`, `subtract`, `universe_fraction`, `adjusted_close`, `rolling_sma` (inside a per-instrument predicate), `greater_than`, `prior_rank` and `weighted_sum`. Each operator has typed input/output units and calendar semantics in the schema registry; `lag` counts GPW sessions, `rolling_sma` counts valid observations for that instrument, `prior_rank` counts prior eligible GPW-session feature values. These are reusable engine operators, not a Python callback embedded in JSON. Version 1 has no conditionals, free-form expressions, arbitrary functions, file access or network access. Later indicators that require another operation need a new schema/engine version; this spec promises no general-purpose expression language.
+`nodes` form an acyclic graph. Version 1 allowlists only the operations needed by the accepted v0 graph: `source`, `lag`, `log_ratio`, `negate`, `subtract`, `universe_fraction`, `adjusted_close`, `rolling_sma` (inside a per-instrument predicate), `greater_than`, `prior_rank` and `weighted_sum`. Each operator has typed input/output units and calendar semantics in the schema registry; `lag` counts GPW sessions, `rolling_sma` counts valid observations for that instrument, `prior_rank` counts prior eligible GPW-session feature values. These are reusable TypeScript engine operators, not executable callbacks embedded in JSON. Version 1 has no conditionals, free-form expressions, arbitrary functions, file access or network access. Later indicators that require another operation need a new schema/engine version; this spec promises no general-purpose expression language.
 
 The accepted v0 graph is, in canonical DSL terms:
 
@@ -175,7 +175,7 @@ flowchart LR
 | `IndicatorResult` | id, version_id, policy_version_id, engine_version, session_date, snapshot_id, revision_id, score_decimal, component_values_json, posture_band, allocation_pct, calculated_at, published_at, timing_status; unique `(version_id, session_date, revision_id)` | Immutable published calculation with complete lineage. An old result remains readable. |
 | `ResultRevision` | prior_result_id, replacement_result_id, reason, detected_at, affected_source_revisions; unique replacement_result_id | Explicit correction chain. A replacement does not erase the original and is labeled late for actionable-history purposes. |
 
-Metadata fits the local SQLite store; large source histories remain in archive-managed Parquet. The snapshot reference is an immutable manifest/revision set sufficient to reproduce the value without copying all observations into each result row. Transactions publish an attempt and result atomically. A job crash before commit leaves no half-result; replay by the same key is idempotent. Definitions and results contain no provider credentials.
+Definitions, attempts, results and canonical source histories reside in PostgreSQL; original provider responses remain in checksummed local files. The snapshot reference is an immutable PostgreSQL revision set sufficient to reproduce the value without copying all observations into each result row. Transactions publish an attempt and result atomically. A worker crash before commit leaves no half-result; replay by the same key is idempotent. Definitions and results contain no provider credentials.
 
 ## 📝 API Contracts
 
@@ -210,11 +210,12 @@ Error codes are stable machine values: `invalid_definition`, `unverified_binding
 - **Score near 75 or another boundary:** map the exact unrounded decimal; 75 is in 70–75, values above 75 are ultra offensive. Rounding is display only.
 - **Corrections and retries:** archive revision creates a new snapshot and result revision; keep original publication time and content. A correction after cutoff cannot alter the earlier actionable signal used by a point-in-time test.
 - **Duplicate scheduler run, daylight-saving shift or process restart:** unique scheduled key prevents duplicate publication; cutoff is derived from the exchange calendar and `Europe/Warsaw` time zone, then stored as UTC.
+- **Mac powered off at cutoff:** on startup, enumerate missed eligible sessions, retain the scheduled 08:30 cutoff as the as-of boundary, and record actual calculation/publication time. Show late or blocked status; never treat a late result as available for the missed session's open in a historical test.
 - **Engine crash or invalid JSON:** transaction leaves no partial score. Record a failed attempt and preserve the last published result with its original session/version label.
 
 ## 📝 Risks & Impact Review
 
-The DSL schema/operator semantics, score precision and as-of rules are durable contracts. Persist engine version and canonical definition; keep old evaluators or migration adapters for saved results, and make new semantics opt-in through a new version. A future provider substitution changes a binding version and forces a new indicator version plus fresh source validation; it does not relabel prior results. Local SQLite backup precedes schema migrations; rollback reactivates a prior immutable version for *future* sessions and leaves old results untouched. Snapshot deletion is forbidden while a result refers to it. No external order, brokerage or credential exposure is in scope.
+The DSL schema/operator semantics, score precision and as-of rules are durable contracts. Persist engine version and canonical definition; keep old evaluators or migration adapters for saved results, and make new semantics opt-in through a new version. A future provider substitution changes a binding version and forces a new indicator version plus fresh source validation; it does not relabel prior results. Local PostgreSQL backup precedes schema migrations; rollback reactivates a prior immutable version for *future* sessions and leaves old results untouched. Snapshot deletion is forbidden while a result refers to it. No external order, brokerage or credential exposure is in scope.
 
 The main feasibility risk is factual: a licensed, daily copper series and reliable timing/coverage may not be available. This is an activation gate, not evidence that the model performs well. Predictive value is evaluated only in the later historical-validation feature with its separate JSON protocol and untouched holdout. The app must work as a transparent archive/blocked-result view even if the v0 barometer cannot yet activate.
 
@@ -225,7 +226,7 @@ The confirmed App Spec and product brief supply D01 (one barometer first), D02 (
 ## 📋 Phasing
 
 1. **Definition and policy registry:** the owner can register, validate and inspect the v0 JSON and D03 policy on a working local app; invalid definitions cannot activate.
-2. **Daily evaluation and ledger:** with verified archive inputs, the app computes or explicitly blocks each eligible session at its cutoff, retaining versions, snapshot and correction history.
+2. **Daily evaluation and ledger:** with verified archive inputs and the local Mac running, the worker computes or explicitly blocks each eligible session at its cutoff, retaining versions, snapshot and correction history. On startup it reconciles missed powered-off sessions and labels post-cutoff results late or blocked.
 3. **Today and History:** the owner can interpret results, gaps, freshness and revisions through the local browser UI.
 
 ## 📋 Implementation Plan
@@ -236,7 +237,7 @@ The confirmed App Spec and product brief supply D01 (one barometer first), D02 (
 4. Implement generic scalar time-series operators and prior-rank evaluation; verify the 60/252 lookbacks, midrank ties, complete-history requirement and exact decimal score on fixed fixtures.
 5. Implement dated Main Market universe selection and generic per-instrument SMA/fraction operator; verify delisted inclusion, NewConnect exclusion, warm-up counts, split adjustment and the 90% coverage gate.
 6. Wire the accepted v0 graph and D03 policy through the same evaluator; verify known component calculations and all ten boundary bands, including exactly 75.
-7. Add scheduled cutoff attempts, idempotent publication, blocked reasons and crash-safe transaction; verify every GPW session is published or accounted for as blocked at 08:30 and no late calculation is backdated.
+7. Add scheduled cutoff attempts, startup reconciliation, idempotent publication, blocked reasons and crash-safe PostgreSQL transaction; verify every GPW session while the Mac is running is published or accounted for as blocked at 08:30, while a powered-off interval is marked missed then reconciled as late or blocked without backdating.
 8. Add source-revision invalidation and immutable correction lineage; verify original and replacement snapshots/results can both be inspected and the historical actionable result remains the one actually known then.
 9. Build Today and History with version, freshness, breadth and correction detail; verify navigation, Polish labels, keyboard access and non-color-only status on published and blocked sessions.
 10. Perform an account-level source sample for daily copper, WIG/Main Market bars, USD/PLN and FRED yields, including rights, frequency, units, historical coverage and availability evidence. Record the result in the local coverage report; activate v0 only when the gates pass. If access is unavailable, ship the registry and honest blocked state without claiming a live score.

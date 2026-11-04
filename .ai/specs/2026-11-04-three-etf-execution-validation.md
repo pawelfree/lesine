@@ -65,7 +65,7 @@ The same run-identity and holdout mechanism applies. The reserved interval is th
 
 ## 📝 Data Model
 
-This feature **extends** the planned `BacktestProtocolVersion` JSON subtype and `BacktestSession` artifact, and adds `ETFExecutionLeg` rows for per-fund audit. It reuses `BacktestRun`, `HoldoutAccess`, `DataSnapshot` and the archive's `Instrument`/corporate-action identity. There is no separate ETF run registry or duplicate signal table.
+This feature **extends** the planned `BacktestProtocolVersion` JSON subtype and `BacktestSession` record, and adds `ETFExecutionLeg` rows for per-fund audit. It reuses `BacktestRun`, `HoldoutAccess`, `DataSnapshot` and the archive's `Instrument`/corporate-action identity. There is no separate ETF run registry or duplicate signal table.
 
 ```mermaid
 flowchart LR
@@ -85,10 +85,10 @@ flowchart LR
 | Record | Fields and constraints | Purpose |
 |---|---|---|
 | `BacktestProtocolVersion` ETF subtype | Base protocol fields plus exact `basket_weights`, `basket_rebalance_rule`, `price_rule`, `currency_rule` in canonical JSON/hash | Immutable declared basket and execution convention. |
-| `BacktestSession` extension | run_id/date, three price/action refs, per-fund and total pre/post values, target/actual weights, cash, total traded notional/cost by scenario, source/coverage flags | Shared per-session artifact remains sufficient to reproduce the result. |
+| `BacktestSession` extension | run_id/date, three price/action refs, per-fund and total pre/post values, target/actual weights, cash, total traded notional/cost by scenario, source/coverage flags | Shared immutable per-session PostgreSQL record remains sufficient to reproduce the result. |
 | `ETFExecutionLeg` | run_id, session_date, instrument_id, scenario_bps, raw_close_ref, action_ref, units_before/after, target_weight, buy_notional, sell_notional, cost, available_volume_flag; unique `(run_id, session_date, instrument_id, scenario_bps)` | Shows exactly which fund generated return, trade and cost. |
 
-Large session/leg rows live in immutable columnar artifacts with checksum and run manifest; SQLite holds protocol/run identity and artifact refs. A correction never rewrites a completed artifact. There are no credentials or personal holdings in these records.
+Session and leg rows live in PostgreSQL with immutable run identity and a canonical ordered `session_set_hash`; the run becomes complete only when all rows and summary metrics commit atomically. A correction creates a new linked run and never rewrites completed rows. Original provider responses remain in checksummed archive files. There are no credentials or personal holdings in these records.
 
 ## 📝 API Contracts
 
@@ -106,12 +106,12 @@ The Tests page has a separately titled **“Test koszyka trzech ETF”** mode. B
 - **Missing/zero-volume price at a required rebalance:** do not invent a closing fill; block or label a restricted exploratory interval and show the exact date/fund.
 - **Weights do not sum to one or currencies differ:** reject the protocol with field errors before a run.
 - **No next-session ETF close or score arrived late:** no action on that session; record a blocked/unused signal instead of backdating.
-- **Source correction or job crash:** retain previous run/artifact and expose a new linked run or failed state; never display half-computed performance.
+- **Source correction or job crash:** retain previous completed run/rows and expose a new linked run or failed state; never display half-computed performance.
 - **Holdout viewed through another report:** shared exposure ledger removes untouched status for overlapping dates of the same candidate, even if the ETF protocol is new.
 
 ## 📝 Risks & Impact Review
 
-Close-price portfolio accounting is an execution-oriented **simulation**, not proof of fills or capacity in these ETFs. The chosen basket weights and rebalance rule materially affect turnover and cost; both are required JSON fields and prominent report metadata. The first common trading date, price/action integrity and any timing assumption must be verified with actual source samples before a validated report. The new ETF protocol subtype is additive; an old WIG protocol/run remains readable and runnable under its recorded semantic version. Rollback disables ETF subtype registration/runs while preserving already saved artifacts and source snapshots. No broker, order submission, tax model or outside user is added.
+Close-price portfolio accounting is an execution-oriented **simulation**, not proof of fills or capacity in these ETFs. The chosen basket weights and rebalance rule materially affect turnover and cost; both are required JSON fields and prominent report metadata. The first common trading date, price/action integrity and any timing assumption must be verified with actual source samples before a validated report. The new ETF protocol subtype is additive; an old WIG protocol/run remains readable and runnable under its recorded semantic version. Rollback disables ETF subtype registration/runs while preserving already saved PostgreSQL records and source snapshots. No broker, order submission, tax model or outside user is added.
 
 ## 📝 Decisions in play
 
@@ -126,7 +126,7 @@ The same product-brief rules R01–R03, D01–D06 and N01–N02 apply. The confi
 
 1. Extend the shared protocol validator with exactly-three durable ETF identities, decimal weights, explicit rebalance/price/currency rules and no global defaults; verify malformed baskets never register.
 2. Add ETF listing, price, action and volume coverage gate using archive snapshots; verify pre-listing dates and ambiguous symbol identity block only ETF runs.
-3. Extend the shared session artifact with per-fund price/action and holding state plus `ETFExecutionLeg`; verify a corrected bar/action makes a new run without rewriting the old one.
+3. Extend the shared PostgreSQL session records with per-fund price/action and holding state plus `ETFExecutionLeg`; verify a corrected bar/action makes a new run without rewriting the old one.
 4. Implement raw-price/action accounting and the two declared rebalance rules with 0/10/30 bp one-way cost paths; verify exact next-session-close timing, cash conservation, buy/sell costs and no dividend or expense-ratio double count on hand-computed fixtures.
 5. Compute strategy and same-basket 100% baseline over identical common sessions; verify a fund gap or zero-volume needed trade cannot appear as a validated fill and WIG metrics remain unaffected.
 6. Apply shared holdout/research exposure ledger across WIG and ETF reports; verify revealing overlapping WIG dates removes the untouched label from a later ETF variant.

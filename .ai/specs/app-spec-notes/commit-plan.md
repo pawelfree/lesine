@@ -1,6 +1,6 @@
 # Provisional atomic commit plan
 
-Execution: sequential architect checkpoint. Inputs: App Spec §§1–4.5 and `capability-catalog.md`; no existing application code or platform capability was found. Counts are planning units, not a promise about lines of code. A framework selected in a feature spec may change the estimate, but a platform capability may not be claimed without source evidence.
+Inputs: App Spec §§1–4.5 and the accepted [technology decision](../research/decisions/2026-11-04-platform-technology.md). No application code exists yet. Counts are planning units, not a promise about commits; the feature-spec implementation plans are authoritative for sequencing and verification.
 
 ## WF1 — 10 commits
 
@@ -44,6 +44,6 @@ Execution: sequential architect checkpoint. Inputs: App Spec §§1–4.5 and `ca
 
 ## Architect checkpoint
 
-- Missed platform capability? No platform is installed or configured; none can be claimed. Standard libraries/frameworks may replace app plumbing after selection, so estimates remain provisional.
+- Missed platform capability? The accepted Angular/NestJS/PostgreSQL stack is selected but not implemented; no existing app capability can be claimed. Estimates remain provisional.
 - Overengineering? Two app modules preserve the provider boundary and keep indicator/test invariants together. No separate notification service, portal, brokerage integration or visual formula builder is proposed.
 - External gate: provider access and data rights have no commit count. An import that cannot finish for lack of entitlement does not satisfy WF1.

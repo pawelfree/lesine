@@ -4,6 +4,8 @@
 
 This file documents how work flows from ticket to merged PR in this repository. The agent skills configured in `.ai/agentic.config.json` enforce the process; humans read it here. New PRs default to `main`; existing PRs use their own current target branch (`baseRefName`) for base updates, reviews, required checks, and merging; issues and PRs live in GitHub, with every tracker operation the skills run defined in `.ai/trackers/github.md` (edit that file to extend or override tracker behavior).
 
+Automation plans and checkpoints use `.ai/pipeline-runs/` through `paths.runs`. The per-task, append-only commit journal lives in `.ai/runs/` under the rules in `AGENTS.md`.
+
 Work enters through two paths: a free-form task brief handed to an agent, or a filed ticket. Both converge on the same review loop, the same validation gate, and the same merge gates.
 
 Before intake, the work is shaped: `om-brainstorm` turns a single idea or question into a routing decision and a brief, and the spec skills (`om-spec-writing`, `om-auto-write-spec`) turn a feature into a design document before anything is built. Those steps feed the table below; they are not the ticket flow itself.

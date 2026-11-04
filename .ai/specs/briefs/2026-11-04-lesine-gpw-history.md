@@ -36,6 +36,6 @@ The owner needs all available GPW Main Market and NewConnect history retained lo
 
 ## Affected areas (if known)
 
-- New Market archive module; local metadata store and columnar time-series files as approved direction; exact libraries chosen in the feature spec.
+- New Market archive module; PostgreSQL canonical market history and metadata plus checksummed original provider-response files under the accepted [technology decision](../research/decisions/2026-11-04-platform-technology.md).
 - Data coverage page at `/data`; provider adapters at the archive boundary.
 - Provider access and licensing are external dependencies, not assumed capabilities.
