@@ -2,7 +2,7 @@
 
 Goals: Implement issue #3 in an isolated worktree, covering its empty Data view, source inventory, bounded source probe and safe local access.
 Spec: [Local GPW history with coverage](../specs/2026-11-04-local-gpw-history-with-coverage.md)
-Status: in-progress
+Status: done
 
 ## Commit log
 
@@ -28,3 +28,8 @@ Remaining: publish the review-fix commit, finalize PR labels/body and arrange ma
 Decision: reserve the limited Free-tier allowance for both source lists; representative depth checks wait for an explicitly larger local budget.
 Verification: full build and a database integration case for both two-call and eight-call budgets passed.
 Remaining: finalize PR review handoff and manual UI/source-account acceptance.
+
+2026-11-04 — Finalize the implementation handoff on ready PR #12 with review notes, SDLC labels and manual QA instructions.
+Decision: the code task is done; independent review, manual UI QA and real-account Q06 evidence remain downstream acceptance gates.
+Verification: the final configured build passed; no automated GitHub checks were reported on the PR.
+Remaining: reviewers perform QA and approve; the epic keeps the real-source completeness gate open.
