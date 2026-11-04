@@ -32,6 +32,6 @@ Before **every commit** for that task, append one 2–5 line entry at the end of
 
 Use `.ai/lessons.md` as the index of reusable findings. Add a short finding with a link to a detailed Markdown note in `.ai/lessons/` when context, evidence, or a recovery procedure matters. Record lessons after a verified bug fix or an observed process improvement; do not treat guesses as established lessons.
 
-The configured build gate checks compilation. It does not replace a running Compose smoke test for runtime changes.
+The configured build gate checks compilation. It does not replace a running Compose smoke test for runtime changes. Follow `SDLC.md`'s PR test environment cleanup rule after every PR smoke test, including failed or interrupted runs.
 
 When spawning agents for simple tasks, use lower models and efforts.

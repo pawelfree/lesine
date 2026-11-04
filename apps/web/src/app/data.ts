@@ -12,6 +12,8 @@ type CatalogResponse = {
   data: { status: string; expected_scope_status: string; rights_status: string; checked_at: string | null; count: number; rows: CatalogRow[]; sample: { listing_state: string; status: string; error_code: string | null }[]; depth_sample: { listing_state: string; data_class: string; provider_symbol: string; sample_from: string; sample_to: string; earliest_observed: string | null; latest_observed: string | null; status: string }[] };
   page: { next_cursor: string | null };
 };
+type ImportJob = { id: string; status: string; completed_chunks: number; total_chunks: number; cursor: string | null;
+  error_code: string | null; retry_after_utc: string | null; updated_at: string };
 
 @Component({
   selector: 'app-data',
@@ -20,6 +22,23 @@ type CatalogResponse = {
       <p class="eyebrow">LOKALNE DANE RYNKOWE</p>
       <h1>Dane GPW</h1>
       <p>Stan katalogu źródła. Kompletność historycznych notowań nie została jeszcze potwierdzona.</p>
+      <section class="status" aria-label="Import notowań">
+        <h2>Import notowań</h2>
+        @if (job(); as current) {
+          <p role="status">Stan: {{ jobLabel(current.status) }}. Ukończono {{ current.completed_chunks }} z {{ current.total_chunks }} części.</p>
+          <p>Ostatnia aktualizacja: {{ current.updated_at }}</p>
+          @if (current.error_code) { <p>Przyczyna: {{ errorLabel(current.error_code) }}</p> }
+          @if (current.retry_after_utc) { <p>Możliwa kolejna próba: {{ current.retry_after_utc }}</p> }
+          @if (current.status === 'paused' || current.status === 'failed') {
+            <button type="button" (click)="resumeImport()" [disabled]="jobBusy()">Wznów import</button>
+          }
+        } @else { <p>Nie uruchomiono jeszcze importu notowań.</p> }
+        @if (!job() || job()?.status === 'done') {
+          <button type="button" (click)="startImport()" [disabled]="jobBusy() || !catalog()?.data?.count">Pobierz ostatni rok notowań</button>
+        }
+        <button type="button" (click)="refreshJob()">Odśwież stan</button>
+        @if (jobError()) { <p role="alert">Nie udało się wykonać operacji importu. Sprawdź stan źródła i spróbuj ponownie.</p> }
+      </section>
       @if (loading()) { <p role="status">Wczytywanie katalogu…</p> }
       @if (error()) { <p role="alert">Nie udało się odczytać lokalnego katalogu. Wcześniejsze dane mogą nadal istnieć.</p> }
       @if (catalog(); as result) {
@@ -77,6 +96,9 @@ export class DataPage {
   readonly error = signal(false);
   readonly market = signal('all');
   readonly listing = signal('all');
+  readonly job = signal<ImportJob | null>(null);
+  readonly jobBusy = signal(false);
+  readonly jobError = signal(false);
   private cursor: string | null = null;
   private requestSequence = 0;
 
@@ -84,13 +106,54 @@ export class DataPage {
     return ({ available: 'dostępne', unavailable: 'niedostępne', quota_wait: 'oczekiwanie na limit', empty: 'brak rekordów' } as Record<string, string>)[status] ?? 'nieznany';
   }
   errorLabel(code: string): string {
-    return ({ missing_credential: 'brak klucza dostawcy', daily_budget_reached: 'dzienny budżet wyczerpany', source_unavailable: 'źródło niedostępne', invalid_catalog_payload: 'nieprawidłowa odpowiedź źródła' } as Record<string, string>)[code] ?? 'wymaga sprawdzenia';
+    return ({ missing_credential: 'brak klucza dostawcy', daily_budget_reached: 'dzienny budżet wyczerpany', provider_rate_limit: 'limit dostawcy', source_unavailable: 'źródło niedostępne', invalid_catalog_payload: 'nieprawidłowa odpowiedź źródła' } as Record<string, string>)[code] ?? 'wymaga sprawdzenia';
   }
   classLabel(dataClass: string): string {
     return ({ eod: 'notowania EOD', dividends: 'dywidendy', splits: 'splity' } as Record<string, string>)[dataClass] ?? 'inne dane';
   }
 
-  constructor() { void this.load(); }
+  jobLabel(status: string): string {
+    return ({ queued: 'w kolejce', running: 'w trakcie', quota_wait: 'oczekuje na limit', paused: 'wstrzymany', failed: 'nieudany', done: 'zakończony' } as Record<string, string>)[status] ?? 'nieznany';
+  }
+
+  constructor() { void this.load(); void this.refreshJob(); }
+
+  async refreshJob(): Promise<void> {
+    try {
+      const response = await fetch('/api/import-jobs');
+      if (!response.ok) throw new Error('job_unavailable');
+      this.job.set(((await response.json()) as { data: ImportJob | null }).data);
+      this.jobError.set(false);
+    } catch { this.jobError.set(true); }
+  }
+
+  private async mutateJob(url: string, payload: unknown): Promise<void> {
+    this.jobBusy.set(true);
+    this.jobError.set(false);
+    try {
+      const session = await fetch('/api/session');
+      if (!session.ok) throw new Error('session_unavailable');
+      const token = ((await session.json()) as { data: { csrf_token: string } }).data.csrf_token;
+      const response = await fetch(url, { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Lesine-CSRF': token }, body: JSON.stringify(payload) });
+      if (!response.ok) throw new Error('job_mutation_failed');
+      await this.refreshJob();
+    } catch { this.jobError.set(true); }
+    finally { this.jobBusy.set(false); }
+  }
+
+  async startImport(): Promise<void> {
+    const to = new Date();
+    const from = new Date(to);
+    from.setUTCFullYear(from.getUTCFullYear() - 1);
+    await this.mutateJob('/api/import-jobs', { provider: 'eodhd', market_scope: 'all', data_classes: ['daily_bars'],
+      mode: 'incremental', from_date: from.toISOString().slice(0, 10), to_date: to.toISOString().slice(0, 10) });
+  }
+
+  async resumeImport(): Promise<void> {
+    const current = this.job();
+    if (current) await this.mutateJob(`/api/import-jobs/${current.id}/resume`, {});
+  }
 
   setMarket(event: Event): void { this.market.set((event.target as HTMLSelectElement).value); this.cursor = null; void this.load(); }
   setListing(event: Event): void { this.listing.set((event.target as HTMLSelectElement).value); this.cursor = null; void this.load(); }

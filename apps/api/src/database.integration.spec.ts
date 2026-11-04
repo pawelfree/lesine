@@ -19,12 +19,21 @@ test('forward-only migrations initialize an empty database and do not rerun afte
         try {
           await database.onApplicationBootstrap();
           const versions = await database.pool.query('SELECT version FROM schema_migrations ORDER BY version');
-          assert.deepEqual(versions.rows.map((row) => row.version), ['001_source_inventory', '002_source_depth_sample']);
+          assert.deepEqual(versions.rows.map((row) => row.version), ['001_source_inventory', '002_source_depth_sample', '003_import_jobs']);
           const tables = await database.pool.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.source_depth_samples') AS samples");
           assert.equal(tables.rows[0].symbols, 'source_symbols');
           assert.equal(tables.rows[0].samples, 'source_depth_samples');
         } finally { await database.onModuleDestroy(); }
       }
+      // Roll back this additive migration in the disposable database and preserve older tables.
+      const rollback = new Pool();
+      try {
+        await rollback.query('DROP TABLE import_chunks');
+        await rollback.query('DROP TABLE import_jobs');
+        const tables = await rollback.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.import_jobs') AS jobs");
+        assert.equal(tables.rows[0].symbols, 'source_symbols');
+        assert.equal(tables.rows[0].jobs, null);
+      } finally { await rollback.end(); }
     } finally {
       if (originalDatabase === undefined) delete process.env.PGDATABASE; else process.env.PGDATABASE = originalDatabase;
       await admin.query(`DROP DATABASE IF EXISTS ${name}`);
