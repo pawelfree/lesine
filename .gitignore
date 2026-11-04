@@ -2,3 +2,8 @@
 .ai/qa/test-env.json
 .ai/qa/test-env.env
 .DS_Store
+.env
+node_modules/
+**/node_modules/
+**/dist/
+**/.angular/

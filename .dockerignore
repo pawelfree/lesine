@@ -1,0 +1,9 @@
+.git
+.ai
+.agents
+.codex
+**/node_modules
+**/dist
+**/.angular
+.env
+README.md

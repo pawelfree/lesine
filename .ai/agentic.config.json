@@ -6,7 +6,7 @@
     "provider": "agent-browser"
   },
   "validation": {
-    "commands": []
+    "commands": ["npm run build"]
   },
   "labels": {
     "enabled": true,

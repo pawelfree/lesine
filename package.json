@@ -1,0 +1,11 @@
+{
+  "name": "lesine",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/api", "apps/worker", "apps/web"],
+  "engines": { "node": "^24.15.0" },
+  "scripts": {
+    "build": "npm run build -w @lesine/api && npm run build -w @lesine/worker && npm run build -w web",
+    "test": "npm run test -w web -- --watch=false"
+  }
+}

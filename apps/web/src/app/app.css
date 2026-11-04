@@ -1,0 +1,14 @@
+:host { display: block; min-height: 100vh; }
+.shell { max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.brand { font-size: 1.5rem; font-weight: 750; letter-spacing: -.04em; }
+.badge { color: #4c5a6b; font-size: .875rem; }
+.intro { margin: 110px 0 68px; max-width: 650px; }
+.eyebrow { color: #246f7a; font-size: .75rem; font-weight: 750; letter-spacing: .14em; }
+h1 { margin: 12px 0 20px; font-size: clamp(2.5rem, 7vw, 4.5rem); line-height: 1.06; letter-spacing: -.05em; }
+.intro p:last-child { color: #4c5a6b; font-size: 1.15rem; line-height: 1.6; }
+.status { padding: 30px; background: #fff; border: 1px solid #d9e2e7; border-radius: 14px; box-shadow: 0 8px 28px #1633430a; }
+h2 { margin: 0 0 20px; font-size: 1.1rem; }
+.status p { margin: 0 0 12px; }
+.status strong { color: #146a4c; }
+.hint { color: #6a7685; font-size: .875rem; }

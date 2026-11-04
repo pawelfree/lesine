@@ -1,13 +1,13 @@
 # Repository instructions
 
-`lesine` is a greenfield application. Product decisions are in `.ai/specs/`; the accepted stack is in [the technology decision](.ai/specs/research/decisions/2026-11-04-platform-technology.md). Application code, tests, and CI are not present yet.
+`lesine` is a greenfield application with an initial Angular/NestJS/PostgreSQL shell. Product decisions are in `.ai/specs/`; the accepted stack is in [the technology decision](.ai/specs/research/decisions/2026-11-04-platform-technology.md). Market data and indicator features are not implemented yet.
 
 | When the task involves… | Read first | Key rules |
 |---|---|---|
 | Project scope or new implementation | `README.md`, `.ai/specs/2026-11-04-app-spec-lesine.md`, `.ai/specs/research/decisions/2026-11-04-platform-technology.md` | Use the accepted product rules and technology decision; check the relevant feature spec before coding. |
 | Agent pipeline or tracker workflow | `.ai/agentic.config.json`, `SDLC.md` | Keep the configuration and process document aligned. |
 | Code review | `CODE_REVIEW.md`, `BACKWARD_COMPATIBILITY.md` | Apply the documented review and compatibility rules. |
-| Validation or CI | `.ai/agentic.config.json` | No validation commands are configured yet; add real checks when the stack exists. <!-- discovery:routing-start --> |
+| Validation or CI | `.ai/agentic.config.json`, `README.md` | Run the configured build check with supported Node.js 24.15+; use Docker Compose for the local smoke test. <!-- discovery:routing-start --> |
 | Product discovery, a brief, or a backlog | `.ai/specs/product-brief.md`, `.ai/specs/research/`, `SDLC.md` | Apply the Definition of Ready and protected product decisions in `SDLC.md`; treat synthetic personas as hypotheses. <!-- discovery:routing-end --> |
 | Writing or resuming a specification | `.ai/specs/` | Name each specification `YYYY-MM-DD-slug.md`; keep active specs in `.ai/specs/`, completed ones in `.ai/specs/implemented/`, and superseded or abandoned ones in `.ai/specs/archive/`. Preserve the filename when moving it. |
 | Starting, resuming, or committing an AI-assisted task | `.ai/runs/` | Use the single task journal described below; read it before resuming and update it in the same commit as the work it records. |
@@ -32,6 +32,6 @@ Before **every commit** for that task, append one 2–5 line entry at the end of
 
 Use `.ai/lessons.md` as the index of reusable findings. Add a short finding with a link to a detailed Markdown note in `.ai/lessons/` when context, evidence, or a recovery procedure matters. Record lessons after a verified bug fix or an observed process improvement; do not treat guesses as established lessons.
 
-The configured validation gate is currently empty. Do not treat that as evidence that a change has been tested.
+The configured build gate checks compilation. It does not replace a running Compose smoke test for runtime changes.
 
 When spawning agents for simple tasks, use lower models and efforts.
