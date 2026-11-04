@@ -112,12 +112,18 @@ export class ImportJobsController {
     if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length > 0)
       throw error('invalid_request', 'Wznowienie nie przyjmuje danych.', 400);
     if (!idPattern.test(id)) throw error('not_found', 'Nie znaleziono importu.', 404);
-    const result = await this.database.pool.query<{ cursor: string | null }>(
-      `UPDATE import_jobs SET status = 'queued', error_code = NULL, retry_after_utc = NULL,
-       lease_token = NULL, lease_expires_at = NULL, updated_at = now()
-       WHERE id = $1 AND (status IN ('paused', 'failed') OR
-         (status = 'quota_wait' AND retry_after_utc <= now())) RETURNING cursor`, [id],
-    );
+    let result;
+    try {
+      result = await this.database.pool.query<{ cursor: string | null }>(
+        `UPDATE import_jobs SET status = 'queued', error_code = NULL, retry_after_utc = NULL,
+         lease_token = NULL, lease_expires_at = NULL, updated_at = now()
+         WHERE id = $1 AND (status IN ('paused', 'failed') OR
+           (status = 'quota_wait' AND retry_after_utc <= now())) RETURNING cursor`, [id],
+      );
+    } catch (cause) {
+      if ((cause as { code?: string }).code === '23505') throw error('conflict', 'Import tego zakresu jest już aktywny.', 409);
+      throw cause;
+    }
     if (!result.rows[0]) {
       const exists = await this.database.pool.query('SELECT 1 FROM import_jobs WHERE id = $1', [id]);
       if (!exists.rowCount) throw error('not_found', 'Nie znaleziono importu.', 404);

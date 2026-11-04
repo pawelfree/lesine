@@ -24,7 +24,7 @@ CREATE INDEX import_jobs_runnable ON import_jobs(status, retry_after_utc, lease_
 CREATE TABLE import_chunks (
   id uuid PRIMARY KEY,
   job_id uuid NOT NULL REFERENCES import_jobs(id),
-  resource_key text NOT NULL,
+  resource_key text NOT NULL REFERENCES source_symbols(id),
   from_date date NOT NULL,
   to_date date NOT NULL CHECK (to_date >= from_date),
   status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'done', 'failed')),

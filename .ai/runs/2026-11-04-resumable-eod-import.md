@@ -28,3 +28,8 @@ Remaining: authoritative review, final PR labels and test-environment cleanup.
 Decision: keep the source response archive and cursor separate from later normalized revisions; do not claim market completeness on job completion.
 Verification: full build and unit suite passed; isolated PostgreSQL migration, API and fake-provider worker tests passed.
 Remaining: publish review evidence and labels, close the draft state, remove PR test resources.
+
+2026-11-04 — Close review findings: fence missing source references, validate response dates and distinguish provider failures from local storage errors.
+Decision: a failed job can resume only when its scope has no other active job; the API maps that conflict to 409.
+Verification: configured build, unit tests, fresh migration/rollback test and isolated PostgreSQL worker tests passed.
+Remaining: update PR review state and labels, remove temporary Compose resources.

@@ -154,6 +154,7 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
   url.searchParams.set('fmt', 'json');
   url.searchParams.set('from', item.from_date);
   url.searchParams.set('to', item.to_date);
+  let raw: string;
   try {
     const response = await fetcher(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) });
     if (response.status === 429) {
@@ -165,14 +166,16 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
       return true;
     }
     if (!response.ok) throw new Error('source_unavailable');
-    const raw = await response.text();
+    raw = await response.text();
     if (raw.length > 5_000_000) throw new Error('invalid_depth_payload');
-    const data: unknown = JSON.parse(raw);
+    let data: unknown;
+    try { data = JSON.parse(raw) as unknown; }
+    catch { throw new Error('invalid_depth_payload'); }
     if (!Array.isArray(data) || !data.every((row) => row && typeof row === 'object' && typeof (row as { date?: unknown }).date === 'string'
-      && /^\d{4}-\d{2}-\d{2}$/.test((row as { date: string }).date))) throw new Error('invalid_depth_payload');
-    const hash = sha(raw);
-    const fileId = await retain(raw, hash);
-    await commitChunk(pool, lease, item.id, hash, fileId);
+      && /^\d{4}-\d{2}-\d{2}$/.test((row as { date: string }).date)
+      && !Number.isNaN(Date.parse(`${(row as { date: string }).date}T00:00:00Z`))
+      && new Date(`${(row as { date: string }).date}T00:00:00Z`).toISOString().slice(0, 10) === (row as { date: string }).date
+      && (row as { date: string }).date >= item.from_date && (row as { date: string }).date <= item.to_date)) throw new Error('invalid_depth_payload');
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'invalid_depth_payload') {
       await changeStatus(pool, lease, 'failed', 'invalid_depth_payload', null);
@@ -181,6 +184,9 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
     await changeStatus(pool, lease, 'quota_wait', 'source_unavailable', new Date(Date.now() + 15 * 60_000));
     return true;
   }
+  const hash = sha(raw);
+  const fileId = await retain(raw, hash);
+  if (!await commitChunk(pool, lease, item.id, hash, fileId)) return true;
   const pending = await pool.query(`SELECT 1 FROM import_chunks WHERE job_id = $1 AND status <> 'done' LIMIT 1`, [lease.id]);
   await changeStatus(pool, lease, pending.rowCount ? 'queued' : 'done', null, null);
   return true;
