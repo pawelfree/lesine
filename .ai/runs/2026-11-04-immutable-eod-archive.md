@@ -32,3 +32,8 @@ Remaining: full validation, code review, PR publication and temporary-environmen
 Decision: a database constraint failure must roll back the manifest and leave the chunk pending.
 Verification: the test passed on a fresh isolated database; a populated bundle restored one bar, one manifest and one checked file into empty volumes.
 Remaining: final full gate, code review, PR publication and cleanup.
+
+2026-11-04 — Preserve and verify response files from pre-manifest imports during migration and backup.
+Decision: legacy completed chunks stay unverified but their source files remain referenced until a new import provides a manifest.
+Verification: a fresh PostgreSQL database passed the before/after migration file-retention and bundle test.
+Remaining: final validation, re-review, ready PR and environment cleanup.

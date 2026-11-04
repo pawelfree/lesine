@@ -32,14 +32,26 @@ async function checkedCopy(sourceRoot: string, targetRoot: string, ref: FileRef)
 }
 
 export async function referencedFiles(pool: Pool): Promise<FileRef[]> {
-  const result = await pool.query<FileRef>(
-    `SELECT DISTINCT relative_path, sha256 FROM raw_file_manifests
-     UNION SELECT DISTINCT 'catalog/' || response_sha256 || '.json', response_sha256
-       FROM catalog_probes WHERE response_sha256 IS NOT NULL
-     UNION SELECT DISTINCT 'catalog/' || response_sha256 || '.json', response_sha256
-       FROM source_depth_samples WHERE response_sha256 IS NOT NULL`,
+  const hasManifests = await pool.query<{ present: boolean }>(
+    "SELECT to_regclass('public.raw_file_manifests') IS NOT NULL AS present",
   );
-  return result.rows.sort((a, b) => a.relative_path.localeCompare(b.relative_path));
+  const manifested = hasManifests.rows[0].present
+    ? (await pool.query<FileRef>('SELECT relative_path, sha256 FROM raw_file_manifests')).rows : [];
+  const legacy = await pool.query<FileRef>(
+    `SELECT 'import/' || response_hash || '.json' AS relative_path, response_hash AS sha256
+     FROM import_chunks WHERE status = 'done' AND response_hash IS NOT NULL
+       ${hasManifests.rows[0].present ? 'AND manifest_id IS NULL' : ''}`,
+  );
+  const catalog = await pool.query<FileRef>(
+    `SELECT 'catalog/' || response_sha256 || '.json' AS relative_path, response_sha256 AS sha256
+     FROM catalog_probes WHERE response_sha256 IS NOT NULL
+     UNION SELECT 'catalog/' || response_sha256 || '.json', response_sha256
+     FROM source_depth_samples WHERE response_sha256 IS NOT NULL`,
+  );
+  const all = [...manifested, ...legacy.rows, ...catalog.rows];
+  for (const ref of all) checkedPath(responseRoot(), ref);
+  return [...new Map(all.map((ref) => [ref.relative_path, ref])).values()]
+    .sort((a, b) => a.relative_path.localeCompare(b.relative_path));
 }
 
 export async function verifyArchive(pool: Pool, quarantineOrphans = false): Promise<{ files: number; legacyChunks: number }> {
@@ -49,8 +61,13 @@ export async function verifyArchive(pool: Pool, quarantineOrphans = false): Prom
       throw new Error(`archive_file_corrupt: ${ref.relative_path}`);
     }
   }
+  const hasManifestColumn = await pool.query<{ present: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
+       AND table_name = 'import_chunks' AND column_name = 'manifest_id') AS present`,
+  );
   const legacy = await pool.query<{ count: string }>(
-    "SELECT COUNT(*)::text AS count FROM import_chunks WHERE status = 'done' AND manifest_id IS NULL",
+    `SELECT COUNT(*)::text AS count FROM import_chunks WHERE status = 'done'
+     ${hasManifestColumn.rows[0].present ? 'AND manifest_id IS NULL' : ''}`,
   );
   if (quarantineOrphans) {
     const directory = resolve(responseRoot(), 'import');
