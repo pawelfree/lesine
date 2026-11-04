@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesine GPW archive data model</title>
+<style>
+body{margin:0;background:#f8fafc;color:#0f172a;font:15px system-ui,sans-serif}header{padding:16px 22px;border-bottom:1px solid #cbd5e1}h1{font-size:19px;margin:0 0 4px}p{margin:0;color:#475569}svg{display:block;width:100vw;height:calc(100vh - 74px);touch-action:none}.edge{stroke:#94a3b8;stroke-width:2}.edge-label{fill:#475569;font-size:12px}.node{cursor:pointer}.node rect{fill:#2f6feb;stroke:#1b4fb0;stroke-width:2;rx:8}.node text{fill:#fff;font-weight:600;font-size:14px}.dim{opacity:.16}
+</style>
+<header><h1>Lesine GPW archive · data model</h1><p>Drag to pan, scroll to zoom, click a node to focus its direct links. Click the background to reset.</p></header>
+<svg id="diagram" role="img" aria-label="Data model graph for the local GPW archive" viewBox="0 0 1050 620"><g id="viewport"></g></svg>
+<script>
+const nodes=[
+ {id:'entity_1',name:'SourceSymbol',x:100,y:120},{id:'entity_2',name:'IdentityLink',x:360,y:120},{id:'entity_3',name:'Instrument',x:660,y:120},
+ {id:'entity_4',name:'ImportJob',x:100,y:300},{id:'entity_5',name:'ImportChunk',x:360,y:300},{id:'entity_6',name:'RawFileManifest',x:660,y:300},
+ {id:'entity_7',name:'CoverageReport',x:100,y:480},{id:'entity_8',name:'CoverageRow',x:360,y:480},{id:'entity_9',name:'DataSnapshot',x:660,y:480}
+];
+const edges=[
+ {a:'entity_1',b:'entity_2',label:'1–n'},{a:'entity_2',b:'entity_3',label:'n–1'},
+ {a:'entity_4',b:'entity_5',label:'1–n'},{a:'entity_5',b:'entity_6',label:'n–1'},
+ {a:'entity_7',b:'entity_8',label:'1–n'},{a:'entity_8',b:'entity_1',label:'n–1 optional'},
+ {a:'entity_9',b:'entity_6',label:'revision refs'}
+];
+const ns='http://www.w3.org/2000/svg',svg=document.getElementById('diagram'),view=document.getElementById('viewport'),items=new Map();
+const make=(tag,attrs,parent)=>{const el=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,String(v));parent.appendChild(el);return el};
+for(const e of edges){const a=nodes.find(n=>n.id===e.a),b=nodes.find(n=>n.id===e.b),g=make('g',{},view);make('line',{x1:a.x+75,y1:a.y+20,x2:b.x+75,y2:b.y+20,class:'edge'},g);const t=make('text',{x:(a.x+b.x)/2+75,y:(a.y+b.y)/2+9,class:'edge-label','text-anchor':'middle'},g);t.textContent=e.label;items.set('edge:'+e.a+':'+e.b,g)}
+for(const n of nodes){const g=make('g',{class:'node',tabindex:'0',role:'button','aria-label':n.name},view);make('rect',{x:n.x,y:n.y,width:160,height:42},g);const t=make('text',{x:n.x+80,y:n.y+26,'text-anchor':'middle'},g);t.textContent=n.name;g.addEventListener('click',ev=>{ev.stopPropagation();focus(n.id)});g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();focus(n.id)}});items.set(n.id,g)}
+function focus(id){const direct=new Set([id]);for(const e of edges)if(e.a===id||e.b===id){direct.add(e.a);direct.add(e.b)}for(const n of nodes)items.get(n.id).classList.toggle('dim',!direct.has(n.id));for(const e of edges)items.get('edge:'+e.a+':'+e.b).classList.toggle('dim',e.a!==id&&e.b!==id)}
+svg.addEventListener('click',()=>{for(const el of items.values())el.classList.remove('dim')});
+let scale=1,tx=0,ty=0,drag=null;const render=()=>view.setAttribute('transform',`translate(${tx} ${ty}) scale(${scale})`);svg.addEventListener('pointerdown',e=>{if(e.target.closest('.node'))return;drag={x:e.clientX,y:e.clientY,tx,ty};svg.setPointerCapture(e.pointerId)});svg.addEventListener('pointermove',e=>{if(!drag)return;tx=drag.tx+e.clientX-drag.x;ty=drag.ty+e.clientY-drag.y;render()});svg.addEventListener('pointerup',()=>drag=null);svg.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(.4,Math.min(3,scale*(e.deltaY<0?1.1:.9)));render()},{passive:false});
+</script>
+</html>
