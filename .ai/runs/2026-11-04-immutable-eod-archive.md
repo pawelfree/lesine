@@ -37,3 +37,8 @@ Remaining: final full gate, code review, PR publication and cleanup.
 Decision: legacy completed chunks stay unverified but their source files remain referenced until a new import provides a manifest.
 Verification: a fresh PostgreSQL database passed the before/after migration file-retention and bundle test.
 Remaining: final validation, re-review, ready PR and environment cleanup.
+
+2026-11-04 — Keep services stopped after a backup taken against the pre-manifest schema.
+Decision: the newly built worker must not run against schema 003 before the upgraded API applies migration 004.
+Verification: a disposable schema-003 Compose project produced a bundle and left only PostgreSQL running.
+Remaining: final build, code review, ready PR and temporary-environment cleanup.

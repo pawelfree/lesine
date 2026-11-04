@@ -23,7 +23,7 @@ After the catalog is available, `/data` can start a one-year EOD request. The wo
 
 ## Back up and restore the archive
 
-Take a backup **before each migration** and after valuable imports. The command stops API and worker writes, dumps PostgreSQL, verifies every referenced provider-response file, and creates one versioned directory with `database.dump`, `bundle.json` and `responses/`. It then restarts the services. Choose an absolute path outside the repository; the bundle contains source data and should remain private.
+Take a backup **before each migration** and after valuable imports. The command stops API and worker writes, dumps PostgreSQL, verifies every referenced provider-response file, and creates one versioned directory with `database.dump`, `bundle.json` and `responses/`. On a database already carrying manifests it restarts the services. When backing up a pre-manifest database, it leaves API and worker stopped so the new worker cannot process jobs before the API applies migration 004; inspect the bundle, then start the upgraded stack with `docker compose up --build --detach --wait`. Choose an absolute path outside the repository; the bundle contains source data and should remain private.
 
 ```sh
 scripts/archive.sh backup "$HOME/lesine-backups/2026-11-04"

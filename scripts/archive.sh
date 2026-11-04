@@ -17,11 +17,17 @@ if [[ "$bundle" != /* ]]; then echo 'Bundle path must be absolute' >&2; exit 2; 
 
 if [[ "$command" == backup ]]; then
   if [[ -e "$bundle" ]]; then echo 'Backup destination already exists' >&2; exit 2; fi
+  legacy_schema="$("${compose[@]}" exec -T db psql -U lesine -d lesine -Atc \
+    "SELECT to_regclass('public.raw_file_manifests') IS NULL")"
   mkdir -p "$(dirname "$bundle")"
   temporary="$(mktemp -d "$(dirname "$bundle")/.lesine-backup.XXXXXX")"
   cleanup_backup() {
     if [[ -d "$temporary" ]]; then rm -rf -- "$temporary"; fi
-    "${compose[@]}" up -d --wait api worker >/dev/null || true
+    if [[ "$legacy_schema" == f ]]; then
+      "${compose[@]}" up -d --wait api worker >/dev/null || true
+    else
+      echo 'Pre-manifest database: API and worker remain stopped; deploy the upgraded stack after checking the backup.' >&2
+    fi
   }
   trap cleanup_backup EXIT
   "${compose[@]}" stop api worker
