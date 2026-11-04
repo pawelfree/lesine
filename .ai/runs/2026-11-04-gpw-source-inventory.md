@@ -14,3 +14,7 @@ Remaining: implement, verify, review and publish the issue #3 flow.
 Decision: keep WAR market classification unclassified and require a manual probe with a persisted daily budget; do not fetch on restart.
 Verification: Node and Angular tests, full build, and isolated Compose checks including a fake-provider database probe passed.
 Remaining: review the PR, address findings, finish UI evidence if a browser is available, and mark the run complete.
+
+2026-11-04 — Mark all planned implementation steps complete and attach PR #12 to the tracking plan.
+Decision: real EODHD access remains an acceptance evidence gate (Q06), so the report keeps rights and full-history status unverified.
+Remaining: run the review loop, address findings and finalize the PR handoff.

@@ -28,15 +28,17 @@ Implement only history story E01-S01 and its tasks #8–#9. Preserve source iden
 
 ## Progress
 
+PR: #12
+
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Local shell and access
 
-- [ ] 1.1 Add forward-only schema migration and private data volume wiring.
-- [ ] 1.2 Add the Data page empty state and same-origin local API guard.
+- [x] 1.1 Add forward-only schema migration and private data volume wiring. — da2b640
+- [x] 1.2 Add the Data page empty state and same-origin local API guard. — da2b640
 
 ### Phase 2: Source inventory
 
-- [ ] 2.1 Add normalized source-symbol records and a bounded EODHD catalog adapter.
-- [ ] 2.2 Add safe inventory/probe API and Data page states for available and unavailable sources.
-- [ ] 2.3 Add tests for identity, classification, empty state and access boundaries; document source setup.
+- [x] 2.1 Add normalized source-symbol records and a bounded EODHD catalog adapter. — da2b640
+- [x] 2.2 Add safe inventory/probe API and Data page states for available and unavailable sources. — da2b640
+- [x] 2.3 Add tests for identity, classification, empty state and access boundaries; document source setup. — da2b640
