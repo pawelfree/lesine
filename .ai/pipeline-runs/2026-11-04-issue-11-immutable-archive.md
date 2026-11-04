@@ -38,8 +38,8 @@ Implement step 5 of the source-inventory and local EOD archive plan. Keep the cu
 
 ### Phase 1: Archive model and atomic import
 
-- [ ] 1.1 Add manifest and canonical bar revision schema, with immutable references and uniqueness across jobs.
-- [ ] 1.2 Validate and normalize EOD rows, retain checked response files, then commit manifest, revision links, chunk, and cursor under the current lease in one transaction.
+- [x] 1.1 Add manifest and canonical bar revision schema, with immutable references and uniqueness across jobs. — b3d03e7
+- [x] 1.2 Validate and normalize EOD rows, retain checked response files, then commit manifest, revision links, chunk, and cursor under the current lease in one transaction. — b3d03e7
 
 ### Phase 2: Recovery
 

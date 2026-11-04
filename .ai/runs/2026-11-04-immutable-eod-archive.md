@@ -14,3 +14,7 @@ Remaining: schema, atomic import, recovery, tests, documentation and PR review.
 Decision: source-keyed fingerprints deduplicate unchanged bars across jobs; original payloads remain content-addressed files.
 Verification: worker unit tests, disposable migration rollback and PostgreSQL import/lease integration passed.
 Remaining: file reconciliation, backup/restore, correction and tamper tests, documentation and PR review.
+
+2026-11-04 — Mark Phase 1 archive schema and import steps complete in the execution plan.
+Decision: keep recovery as a separate phase so the manifest transaction can be reviewed independently.
+Remaining: file reconciliation, backup/restore, correction and tamper tests, documentation and PR review.
