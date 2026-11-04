@@ -1,13 +1,6 @@
-import { Controller, Get, Module, OnModuleDestroy } from '@nestjs/common';
-import { Pool } from 'pg';
-
-class Database implements OnModuleDestroy {
-  readonly pool = new Pool();
-
-  async onModuleDestroy(): Promise<void> {
-    await this.pool.end();
-  }
-}
+import { Controller, Get, Module } from '@nestjs/common';
+import { CatalogController } from './catalog.controller.js';
+import { Database } from './database.js';
 
 @Controller('health')
 class HealthController {
@@ -20,5 +13,5 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController], providers: [Database] })
+@Module({ controllers: [HealthController, CatalogController], providers: [Database] })
 export class AppModule {}

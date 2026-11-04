@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "tsc -p tsconfig.json", "start": "node dist/main.js" },
+  "scripts": { "build": "tsc -p tsconfig.json", "start": "node dist/main.js", "test": "npm run build && node --test dist/*.spec.js" },
   "dependencies": {
     "@nestjs/common": "^12.3.3",
     "@nestjs/core": "^12.3.3",

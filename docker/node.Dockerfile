@@ -16,4 +16,6 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api apps/api
 COPY --from=build /app/apps/worker apps/worker
+COPY db/migrations db/migrations
+RUN mkdir -p /data/provider-responses && chown node:node /data/provider-responses
 USER node
