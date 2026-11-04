@@ -43,6 +43,16 @@ test('catalog probe persists two source identities and stops at the configured d
       const sha = stored.rows[0].response_sha256 as string;
       const raw = await readFile(`/data/provider-responses/catalog/${sha}.json`);
       assert.equal(createHash('sha256').update(raw).digest('hex'), sha);
+
+      await pool.query("DELETE FROM source_daily_budget WHERE provider = 'eodhd' AND utc_day = CURRENT_DATE");
+      await pool.query("DELETE FROM catalog_probes WHERE provider = 'eodhd'");
+      await pool.query("DELETE FROM source_depth_samples WHERE provider = 'eodhd' AND provider_symbol = 'FIXTURE'");
+      process.env.LESINE_EODHD_DAILY_BUDGET = '2';
+      requested = 0;
+      await probeCatalog(pool, fakeFetch);
+      assert.equal(requested, 2, 'both catalog lists must take priority over depth probes');
+      const limitedProbes = await pool.query("SELECT listing_state, status FROM catalog_probes WHERE provider = 'eodhd' ORDER BY id DESC LIMIT 2");
+      assert.deepEqual(limitedProbes.rows.map((row) => row.status), ['available', 'available']);
     } finally {
       if (originalToken === undefined) delete process.env.EODHD_API_TOKEN; else process.env.EODHD_API_TOKEN = originalToken;
       if (originalLimit === undefined) delete process.env.LESINE_EODHD_DAILY_BUDGET; else process.env.LESINE_EODHD_DAILY_BUDGET = originalLimit;

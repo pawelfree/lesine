@@ -150,6 +150,7 @@ async function probeCatalogUnlocked(pool: Pool, fetcher: typeof fetch): Promise<
   }
   const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
   const dailyLimit = Number.isInteger(configured) && configured >= 1 && configured <= 20 ? configured : 2;
+  const sampleSymbols: Partial<Record<ListingState, string>> = {};
   for (const state of ['active', 'delisted'] as const) {
     const alreadyProbed = await pool.query(
       `SELECT 1 FROM catalog_probes WHERE provider = 'eodhd' AND listing_state = $1
@@ -160,7 +161,7 @@ async function probeCatalogUnlocked(pool: Pool, fetcher: typeof fetch): Promise<
         `SELECT provider_symbol FROM source_symbols WHERE provider = 'eodhd' AND listing_state = $1
          AND last_seen_at::date = CURRENT_DATE ORDER BY provider_symbol LIMIT 1`, [state],
       );
-      if (symbol.rows[0]) await probeDepth(pool, fetcher, token, state, symbol.rows[0].provider_symbol as string, dailyLimit);
+      if (symbol.rows[0]) sampleSymbols[state] = symbol.rows[0].provider_symbol as string;
       continue;
     }
     const client = await pool.connect();
@@ -209,11 +210,15 @@ async function probeCatalogUnlocked(pool: Pool, fetcher: typeof fetch): Promise<
       } finally {
         transaction.release();
       }
-      if (rows[0]) await probeDepth(pool, fetcher, token, state, rows[0].providerSymbol, dailyLimit);
+      if (rows[0]) sampleSymbols[state] = rows[0].providerSymbol;
     } catch (error) {
       const code = error instanceof Error && ['quota_wait', 'invalid_catalog_payload', 'invalid_catalog_row', 'invalid_catalog_code'].includes(error.message)
         ? error.message : 'source_unavailable';
       await recordProbe(pool, state, code === 'quota_wait' ? 'quota_wait' : 'unavailable', null, null, code);
     }
+  }
+  for (const state of ['active', 'delisted'] as const) {
+    const symbol = sampleSymbols[state];
+    if (symbol) await probeDepth(pool, fetcher, token, state, symbol, dailyLimit);
   }
 }

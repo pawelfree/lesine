@@ -23,3 +23,8 @@ Remaining: run the review loop, address findings and finalize the PR handoff.
 Decision: use forward-only migration replay checks and live HTTP denial tests as integration evidence; source account access remains unverified.
 Verification: full build, unit tests, isolated PostgreSQL migration and provider-stub tests, and HTTP boundary tests passed.
 Remaining: publish the review-fix commit, finalize PR labels/body and arrange manual UI QA.
+
+2026-11-04 — Prioritize active and delisted catalog calls before optional depth probes under the default two-call budget.
+Decision: reserve the limited Free-tier allowance for both source lists; representative depth checks wait for an explicitly larger local budget.
+Verification: full build and a database integration case for both two-call and eight-call budgets passed.
+Remaining: finalize PR review handoff and manual UI/source-account acceptance.
