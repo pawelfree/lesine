@@ -19,3 +19,7 @@ Remaining: Phase 2 UI, final validation and PR handoff.
 2026-11-05 — Added the EOD coverage section, browser cache states, filters, tests and contract documentation.
 Decision: cached filters retain their saved values; access denial clears cached rows. The view labels unknown GPW history explicitly.
 Verification: Angular tests passed (10/10); isolated Compose/browser smoke showed two retained fixture identities and a working delisted filter. Remaining: PR review, evidence upload and environment cleanup.
+
+2026-11-05 — Marked Phase 2 plan steps complete after the full build and browser verification.
+Decision: published screenshots on a separate QA evidence branch; removed the isolated Compose stack, volumes, images and browser session.
+Remaining: authoritative PR review and final handoff.

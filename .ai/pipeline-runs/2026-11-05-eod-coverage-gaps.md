@@ -40,5 +40,5 @@ The report must not infer trading days or full source depth from completed reque
 
 ### Phase 2: Data page and verification
 
-- [ ] 2.1 Add accessible report summary, filters, row findings and safe cached/offline states on `/data`, with UI tests.
-- [ ] 2.2 Run build/tests and an isolated Compose/browser smoke check, attach evidence, and document any source-sample limit.
+- [x] 2.1 Add accessible report summary, filters, row findings and safe cached/offline states on `/data`, with UI tests. — 2b2243e
+- [x] 2.2 Run build/tests and an isolated Compose/browser smoke check, attach evidence, and document any source-sample limit. — 2b2243e
