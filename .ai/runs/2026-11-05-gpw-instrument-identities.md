@@ -12,3 +12,7 @@ Remaining: schema, validation/import, archive integration, read API, tests and r
 Decision: migration 009 is independent of the separate action migration 008; repeated evidence files keep old batches.
 Pitfall: macOS /private/tmp canonicalization required checking both lexical and real input paths.
 Remaining: formal review, any fixes and final PR status.
+
+2026-11-05 — Commit records completed plan steps 1.1–3.1 after implementation commit fc8b8f7.
+Decision: full build, isolated database tests and Compose smoke passed; temporary infrastructure was removed.
+Remaining: code review, findings if any, and PR completion.

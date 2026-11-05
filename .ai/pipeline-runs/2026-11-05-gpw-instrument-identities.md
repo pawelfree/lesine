@@ -23,15 +23,15 @@ Goal: Publish owner-attested, dated instrument links from a validated local evid
 
 ### Phase 1: Immutable identity model and validation
 
-- [ ] 1.1 Add migration for instrument, batch, link and head records.
-- [ ] 1.2 Validate complete local JSON maps, intervals, paths and source references without writes.
+- [x] 1.1 Add migration for instrument, batch, link and head records. — fc8b8f7
+- [x] 1.2 Validate complete local JSON maps, intervals, paths and source references without writes. — fc8b8f7
 
 ### Phase 2: Atomic publication and retained evidence
 
-- [ ] 2.1 Import validated file as a checksummed private batch and atomically update the head.
-- [ ] 2.2 Include identity evidence in archive verification and backup/restore.
+- [x] 2.1 Import validated file as a checksummed private batch and atomically update the head. — fc8b8f7
+- [x] 2.2 Include identity evidence in archive verification and backup/restore. — fc8b8f7
 
 ### Phase 3: Read-only access and verification
 
-- [ ] 3.1 Expose current dated links and paginated unresolved identities.
+- [x] 3.1 Expose current dated links and paginated unresolved identities. — fc8b8f7
 - [ ] 3.2 Run build, meaningful PostgreSQL tests, and isolated Compose smoke test; review and fix findings.
