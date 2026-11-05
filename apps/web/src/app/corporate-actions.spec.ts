@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { CorporateActionsSection } from './corporate-actions';
 
-const action = { event_key: 'a'.repeat(64), revision_id: 'revision-2', provider_symbol: 'TEST.WAR',
+const action = { event_key: 'a'.repeat(64), revision_id: 'revision-2', source_symbol_id: '1'.repeat(64),
+  provider_symbol: 'TEST.WAR',
   data_class: 'dividends', ex_date: '2026-05-01', state: 'withdrawn', ambiguous: false,
   amount: null, adjusted_amount: null, currency: 'PLN', split_numerator: null,
   split_denominator: null, first_seen_at: '2026-06-02T00:00:00Z',
@@ -13,8 +14,9 @@ const page = (rows: unknown[], next_cursor: string | null = null) =>
 describe('CorporateActionsSection', () => {
   it('shows retained withdrawal, quota status, and the older revision with source evidence', async () => {
     const original = globalThis.fetch;
+    const requests: string[] = [];
     globalThis.fetch = async (input) => {
-      const url = String(input);
+      const url = String(input); requests.push(url);
       if (url.includes('/revisions')) return new Response(JSON.stringify(page([
         action, { ...action, revision_id: 'revision-1', state: 'active', amount: '2',
           first_seen_at: '2026-05-02T00:00:00Z' },
@@ -41,6 +43,7 @@ describe('CorporateActionsSection', () => {
       expect(element.textContent).toContain('revision-1');
       expect(element.textContent).toContain('revision-2');
       expect(element.textContent).toContain('b'.repeat(64));
+      expect(requests.some((url) => url.includes(`/revisions?source_symbol_id=${action.source_symbol_id}`))).toBe(true);
       fixture.destroy();
     } finally { globalThis.fetch = original; }
   });

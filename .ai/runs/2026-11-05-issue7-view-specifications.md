@@ -1,7 +1,7 @@
 # Issue #7 — specyfikacje widoków nowych danych i korekt
 
 Cele: opisać widok działań korporacyjnych, powiązań instrumentów oraz historię migawek i korekt; uwzględnić ręczne tworzenie migawki na `/data`.
-Specyfikacje: [działania korporacyjne](../specs/2026-11-05-corporate-actions-view.md), [tożsamości instrumentów](../specs/2026-11-05-instrument-identities-view.md), [migawki i korekty](../specs/2026-11-05-snapshot-and-corrections-view.md).
+Specyfikacje: [działania korporacyjne](../specs/implemented/2026-11-05-corporate-actions-view.md), [tożsamości instrumentów](../specs/2026-11-05-instrument-identities-view.md), [migawki i korekty](../specs/2026-11-05-snapshot-and-corrections-view.md).
 Status: done
 
 2026-11-05 — Dodano trzy specyfikacje dla issue #7 oraz diagram modelu żądań migawek.

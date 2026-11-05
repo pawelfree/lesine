@@ -1,7 +1,7 @@
 # Corporate actions view implementation
 
 Status: in-progress
-Source doc: .ai/specs/2026-11-05-corporate-actions-view.md
+Source doc: .ai/specs/implemented/2026-11-05-corporate-actions-view.md
 Spec PR: #30
 
 ## Goal

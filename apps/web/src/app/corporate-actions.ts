@@ -1,7 +1,8 @@
 import { Component, OnDestroy, signal } from '@angular/core';
 
 type ActionKind = 'dividends' | 'splits';
-type Action = { event_key: string; revision_id: string; provider_symbol: string; data_class: ActionKind;
+type Action = { event_key: string; revision_id: string; source_symbol_id: string;
+  provider_symbol: string; data_class: ActionKind;
   ex_date: string; state: 'active' | 'withdrawn'; ambiguous: boolean; amount: string | null;
   adjusted_amount: string | null; currency: string | null; split_numerator: string | null;
   split_denominator: string | null; first_seen_at: string; availability_evidence: string;
@@ -75,11 +76,11 @@ function isActionPage(value: unknown): value is ActionPage {
                 <td>{{ action.state === 'withdrawn' ? 'Wycofane' : 'Aktywne' }}; {{ actionValue(action) }} @if (action.ambiguous) { <strong>Niejednoznaczne</strong> }</td>
                 <td>{{ action.first_seen_at }}</td>
                 <td><code class="hash">{{ action.source_file_sha256 }}</code>
-                  <p>Dowód dostępności: {{ action.availability_evidence }}</p>
+                  <p>Dowód dostępności: {{ availabilityLabel(action.availability_evidence) }}</p>
                   @if (action.has_older_revisions) {
-                    <details (toggle)="toggleHistory($event, action.event_key)">
+                    <details (toggle)="toggleHistory($event, action)">
                       <summary>Historia rewizji</summary>
-                      @if (history()[action.event_key]; as revisions) {
+                      @if (history()[historyKey(action)]; as revisions) {
                         @if (revisions.loading) { <p role="status">Wczytywanie rewizji…</p> }
                         @if (revisions.error) { <p role="alert">Nie udało się odczytać historii lub dowodu źródłowego.</p> }
                         @if (revisions.rows.length) {
@@ -88,7 +89,7 @@ function isActionPage(value: unknown): value is ActionPage {
                           }</ol>
                         }
                         @if (revisions.next_cursor && !revisions.loading) {
-                          <button type="button" (click)="nextHistory(action.event_key)">Więcej rewizji</button>
+                          <button type="button" (click)="nextHistory(action)">Więcej rewizji</button>
                         }
                       }
                     </details>
@@ -137,6 +138,10 @@ export class CorporateActionsSection implements OnDestroy {
       provider_rate_limit: 'limit dostawcy', provider_forbidden: 'brak uprawnień u dostawcy',
       source_unavailable: 'źródło niedostępne', network_error: 'błąd sieci' } as Record<string, string>)[code] ?? code;
   }
+  availabilityLabel(value: string): string {
+    return ({ first_import: 'pierwszy lokalny import', ex_date_only: 'tylko data zdarzenia',
+      declaration_date_only: 'tylko data deklaracji' } as Record<string, string>)[value] ?? value;
+  }
   actionValue(action: Action): string {
     if (action.state === 'withdrawn') return 'zdarzenie wycofane';
     if (action.data_class === 'splits') return `${action.split_numerator ?? '?'}:${action.split_denominator ?? '?'}`;
@@ -179,32 +184,37 @@ export class CorporateActionsSection implements OnDestroy {
     void this.load();
   }
 
-  async toggleHistory(event: Event, eventKey: string): Promise<void> {
-    if (!(event.target as HTMLDetailsElement).open || this.history()[eventKey]) return;
-    await this.loadHistory(eventKey, null);
+  historyKey(action: Action): string { return `${action.source_symbol_id}:${action.event_key}`; }
+  async toggleHistory(event: Event, action: Action): Promise<void> {
+    if (!(event.target as HTMLDetailsElement).open || this.history()[this.historyKey(action)]) return;
+    await this.loadHistory(action, null);
   }
-  async nextHistory(eventKey: string): Promise<void> {
-    if (this.history()[eventKey]?.loading) return;
-    const cursor = this.history()[eventKey]?.next_cursor;
-    if (cursor) await this.loadHistory(eventKey, cursor);
+  async nextHistory(action: Action): Promise<void> {
+    const key = this.historyKey(action);
+    if (this.history()[key]?.loading) return;
+    const cursor = this.history()[key]?.next_cursor;
+    if (cursor) await this.loadHistory(action, cursor);
   }
-  private async loadHistory(eventKey: string, cursor: string | null): Promise<void> {
+  private async loadHistory(action: Action, cursor: string | null): Promise<void> {
+    const key = this.historyKey(action);
     const generation = this.historyGeneration;
-    const previous = this.history()[eventKey];
-    this.history.update((all) => ({ ...all, [eventKey]: { loading: true, error: false,
+    const previous = this.history()[key];
+    this.history.update((all) => ({ ...all, [key]: { loading: true, error: false,
       rows: previous?.rows ?? [], next_cursor: cursor } }));
     try {
-      const path = `/api/corporate-actions/${eventKey}/revisions${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const params = new URLSearchParams({ source_symbol_id: action.source_symbol_id });
+      if (cursor) params.set('cursor', cursor);
+      const path = `/api/corporate-actions/${action.event_key}/revisions?${params.toString()}`;
       const response = await fetch(path);
       if (!response.ok) throw new Error('history_unavailable');
       const page: unknown = await response.json();
       if (!isActionPage(page)) throw new Error('invalid_history_response');
       if (generation !== this.historyGeneration) return;
-      this.history.update((all) => ({ ...all, [eventKey]: { loading: false, error: false,
+      this.history.update((all) => ({ ...all, [key]: { loading: false, error: false,
         rows: [...(cursor ? previous?.rows ?? [] : []), ...page.data.rows], next_cursor: page.page.next_cursor } }));
     } catch {
       if (generation === this.historyGeneration) this.history.update((all) => ({ ...all,
-        [eventKey]: { loading: false, error: true, rows: previous?.rows ?? [], next_cursor: cursor } }));
+        [key]: { loading: false, error: true, rows: previous?.rows ?? [], next_cursor: cursor } }));
     }
   }
 

@@ -1,7 +1,7 @@
 # Corporate actions view
 
 Goals: Implement the corporate-actions view and API without changing EOD coverage; archive the completed specification.
-Specification: [2026-11-05-corporate-actions-view.md](../specs/2026-11-05-corporate-actions-view.md)
+Specification: [2026-11-05-corporate-actions-view.md](../specs/implemented/2026-11-05-corporate-actions-view.md)
 Status: in-progress
 
 2026-11-05 — Add the phased execution plan before implementation.
@@ -36,3 +36,8 @@ Remaining: browser smoke, full gate, review, documentation, and spec archival.
 Verification: a retained dividend, its withdrawal and older revision render; symbol filtering shows the empty state.
 Pitfall: the browser extension could not reach localhost, so the configured agent-browser CLI captured the view.
 Remaining: full gate, final review, documentation, and spec archival.
+
+2026-11-05 — Scope revision history by source symbol and archive the completed view spec.
+Pitfall: event keys can coincide across instruments; the API now requires `source_symbol_id` and UI caches histories per instrument.
+Verification: isolated PostgreSQL regression, full build, Angular tests and rebuilt Compose browser smoke pass.
+Remaining: final PR review, publication and temporary environment cleanup; issue #7 retains two other views.

@@ -121,10 +121,13 @@ export class CorporateActionsController {
   }
 
   @Get(':eventKey/revisions')
-  async revisions(@Param('eventKey') eventKey: string, @Query() query: { cursor?: unknown }):
+  async revisions(@Param('eventKey') eventKey: string, @Query() query: { source_symbol_id?: unknown; cursor?: unknown }):
     Promise<{ data: { rows: Omit<RevisionRow, 'relative_path'>[] }; page: { next_cursor: string | null } }> {
-    if (!sourceId.test(eventKey) || Object.keys(query).some((key) => key !== 'cursor')) throw bad();
-    const last = decode(query.cursor, eventKey, 'revision');
+    if (!sourceId.test(eventKey) || typeof query.source_symbol_id !== 'string' ||
+      !sourceId.test(query.source_symbol_id) ||
+      Object.keys(query).some((key) => !['source_symbol_id', 'cursor'].includes(key))) throw bad();
+    const symbol = query.source_symbol_id;
+    const last = decode(query.cursor, `${symbol}:${eventKey}`, 'revision');
     const rows = await this.database.pool.query<RevisionRow>(
       `SELECT r.event_key, r.id AS revision_id, r.source_symbol_id, s.provider_symbol,
          r.data_class, to_char(r.ex_date, 'YYYY-MM-DD') AS ex_date, r.state, r.ambiguous,
@@ -138,15 +141,16 @@ export class CorporateActionsController {
            AND prior.data_class = r.data_class AND prior.event_key = r.event_key AND prior.id <> r.id) AS has_older_revisions
        FROM corporate_action_revisions r JOIN source_symbols s ON s.id = r.source_symbol_id
          JOIN raw_file_manifests m ON m.id = r.first_manifest_id
-       WHERE r.event_key = $1 AND ($2::timestamptz IS NULL OR (r.first_seen_at, r.id) < ($2::timestamptz, $3::uuid))
+       WHERE r.event_key = $1 AND r.source_symbol_id = $2
+         AND ($3::timestamptz IS NULL OR (r.first_seen_at, r.id) < ($3::timestamptz, $4::uuid))
        ORDER BY r.first_seen_at DESC, r.id DESC LIMIT 101`,
-      [eventKey, last?.[0] ?? null, last?.[1] ?? null],
+      [eventKey, symbol, last?.[0] ?? null, last?.[1] ?? null],
     );
     const page = rows.rows.slice(0, 100);
     await verifyFiles(page);
     const tail = rows.rows.length > 100 ? page[99] : null;
     return { data: { rows: page.map(withoutPrivatePath) },
-      page: { next_cursor: tail ? encode({ scope: eventKey,
+      page: { next_cursor: tail ? encode({ scope: `${symbol}:${eventKey}`,
         last: [tail.first_seen_at.toISOString(), tail.revision_id] }) : null } };
   }
 }
