@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { link, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Pool, PoolClient } from 'pg';
+import { parseCorporateActions, type ActionClass, type ActionEvent } from './corporate-actions.js';
 import { parseEodBars, type EodBar } from './eod-bars.js';
 
 const sha = (raw: string): string => createHash('sha256').update(raw).digest('hex');
@@ -120,6 +121,79 @@ export async function commitChunk(pool: Pool, lease: Lease, chunkId: string, res
   finally { client.release(); }
 }
 
+export async function commitActionChunk(pool: Pool, lease: Lease, chunkId: string, responseHash: string,
+  relativePath: string, events: ActionEvent[]): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (!await fenced(client, lease)) { await client.query('ROLLBACK'); return false; }
+    const chunk = await client.query<{ resource_key: string; from_date: string; to_date: string;
+      market_scope: string; data_class: ActionClass }>(`SELECT c.resource_key,
+      to_char(c.from_date, 'YYYY-MM-DD') AS from_date, to_char(c.to_date, 'YYYY-MM-DD') AS to_date,
+      j.market_scope, c.data_class FROM import_chunks c JOIN import_jobs j ON j.id = c.job_id
+      WHERE c.id = $1 AND c.job_id = $2 AND c.status <> 'done' FOR UPDATE OF c`, [chunkId, lease.id]);
+    const item = chunk.rows[0];
+    if (!item || !['dividends', 'splits'].includes(item.data_class) ||
+      events.some((event) => event.dataClass !== item.data_class || event.exDate < item.from_date ||
+        event.exDate > item.to_date)) { await client.query('ROLLBACK'); return false; }
+    const manifestId = randomUUID();
+    const dates = events.map((event) => event.exDate).sort();
+    await client.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider,
+      data_class, market_scope, min_date, max_date, row_count)
+      VALUES ($1, $2, $3, $4, 'eodhd', $5, $6, $7, $8, $9)`,
+    [manifestId, chunkId, relativePath, responseHash, item.data_class, item.market_scope,
+      dates[0] ?? null, dates.at(-1) ?? null, events.length]);
+    const prior = await client.query<{ event_key: string; fingerprint: string; state: string;
+      ex_date: string; ambiguous: boolean; id: string }>(`SELECT DISTINCT ON (event_key)
+      event_key, fingerprint, state, to_char(ex_date, 'YYYY-MM-DD') AS ex_date, ambiguous, id
+      FROM corporate_action_revisions WHERE provider = 'eodhd' AND source_symbol_id = $1
+        AND data_class = $2 AND ex_date BETWEEN $3::date AND $4::date
+      ORDER BY event_key, first_seen_at DESC, id DESC`,
+    [item.resource_key, item.data_class, item.from_date, item.to_date]);
+    const current = new Map(prior.rows.map((row) => [row.event_key, row]));
+    const incoming = new Set(events.map((event) => event.eventKey));
+    for (const event of events) {
+      const previous = current.get(event.eventKey);
+      let revisionId = previous?.state === 'active' && previous.fingerprint === event.fingerprint
+        ? previous.id : undefined;
+      if (!revisionId) {
+        revisionId = randomUUID();
+        await client.query(`INSERT INTO corporate_action_revisions(id, provider, source_symbol_id,
+          data_class, ex_date, event_key, fingerprint, state, ambiguous, amount, adjusted_amount,
+          currency, declaration_date, record_date, payment_date, split_numerator, split_denominator,
+          split_raw, first_manifest_id, availability_evidence)
+          VALUES ($1, 'eodhd', $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16, $17, $18)`,
+        [revisionId, item.resource_key, item.data_class, event.exDate, event.eventKey,
+          event.fingerprint, event.ambiguous, event.amount, event.adjustedAmount, event.currency,
+          event.declarationDate, event.recordDate, event.paymentDate, event.splitNumerator,
+          event.splitDenominator, event.splitRaw, manifestId, event.availabilityEvidence]);
+      }
+      await client.query(`INSERT INTO action_manifest_revisions(manifest_id, revision_id)
+        VALUES ($1, $2)`, [manifestId, revisionId]);
+    }
+    for (const previous of prior.rows) {
+      if (previous.state !== 'active' || incoming.has(previous.event_key)) continue;
+      const revisionId = randomUUID();
+      await client.query(`INSERT INTO corporate_action_revisions(id, provider, source_symbol_id,
+        data_class, ex_date, event_key, fingerprint, state, ambiguous, first_manifest_id,
+        availability_evidence) VALUES ($1, 'eodhd', $2, $3, $4, $5, $6, 'withdrawn', $7, $8,
+          'first_import')`, [revisionId, item.resource_key, item.data_class, previous.ex_date,
+          previous.event_key, sha(JSON.stringify(['withdrawn', previous.event_key])), previous.ambiguous, manifestId]);
+      await client.query(`INSERT INTO action_manifest_revisions(manifest_id, revision_id)
+        VALUES ($1, $2)`, [manifestId, revisionId]);
+    }
+    await client.query(`UPDATE import_chunks SET status = 'done', response_hash = $2, file_id = $3,
+      manifest_id = $4, error_code = NULL WHERE id = $1`,
+    [chunkId, responseHash, relativePath, manifestId]);
+    await client.query(`UPDATE import_jobs SET cursor = $2, updated_at = now() WHERE id = $1`,
+      [lease.id, `${item.resource_key}:${item.data_class}:${item.from_date}`]);
+    await client.query('COMMIT');
+    return true;
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
+}
+
 async function changeStatus(pool: Pool, lease: Lease, status: JobStatus, errorCode: string | null, retry: Date | null): Promise<boolean> {
   const client = await pool.connect();
   try {
@@ -152,8 +226,9 @@ async function retain(raw: string, hash: string): Promise<string> {
 export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): Promise<boolean> {
   const lease = await claimJob(pool);
   if (!lease) return false;
-  const chunk = await pool.query<{ id: string; resource_key: string; provider_symbol: string; from_date: string; to_date: string }>(
-    `SELECT c.id, c.resource_key, s.provider_symbol,
+  const chunk = await pool.query<{ id: string; resource_key: string; provider_symbol: string;
+    from_date: string; to_date: string; data_class: 'daily_bars' | ActionClass }>(
+    `SELECT c.id, c.resource_key, c.data_class, s.provider_symbol,
        to_char(c.from_date, 'YYYY-MM-DD') AS from_date,
        to_char(c.to_date, 'YYYY-MM-DD') AS to_date
      FROM import_chunks c JOIN source_symbols s ON s.id = c.resource_key
@@ -185,13 +260,16 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
   } catch (error) { await client.query('ROLLBACK'); throw error; }
   finally { client.release(); }
   if (!reserved) { await changeStatus(pool, lease, 'quota_wait', 'daily_budget_reached', nextUtcDay()); return true; }
-  const url = new URL(`https://eodhd.com/api/eod/${encodeURIComponent(item.provider_symbol)}.WAR`);
+  const endpoint = item.data_class === 'daily_bars' ? 'eod'
+    : item.data_class === 'dividends' ? 'div' : 'splits';
+  const url = new URL(`https://eodhd.com/api/${endpoint}/${encodeURIComponent(item.provider_symbol)}.WAR`);
   url.searchParams.set('api_token', token);
   url.searchParams.set('fmt', 'json');
   url.searchParams.set('from', item.from_date);
   url.searchParams.set('to', item.to_date);
   let raw: string;
-  let bars: EodBar[];
+  let bars: EodBar[] = [];
+  let events: ActionEvent[] = [];
   try {
     const response = await fetcher(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) });
     if (response.status === 429) {
@@ -204,10 +282,11 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
     }
     if (!response.ok) throw new Error('source_unavailable');
     raw = await response.text();
-    bars = parseEodBars(raw, item.from_date, item.to_date);
+    if (item.data_class === 'daily_bars') bars = parseEodBars(raw, item.from_date, item.to_date);
+    else events = parseCorporateActions(raw, item.data_class, item.from_date, item.to_date);
   } catch (cause) {
-    if (cause instanceof Error && cause.message === 'invalid_depth_payload') {
-      await changeStatus(pool, lease, 'failed', 'invalid_depth_payload', null);
+    if (cause instanceof Error && ['invalid_depth_payload', 'invalid_action_payload'].includes(cause.message)) {
+      await changeStatus(pool, lease, 'failed', cause.message, null);
       return true;
     }
     await changeStatus(pool, lease, 'quota_wait', 'source_unavailable', new Date(Date.now() + 15 * 60_000));
@@ -215,7 +294,10 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
   }
   const hash = sha(raw);
   const relativePath = await retain(raw, hash);
-  if (!await commitChunk(pool, lease, item.id, hash, relativePath, bars)) return true;
+  const committed = item.data_class === 'daily_bars'
+    ? await commitChunk(pool, lease, item.id, hash, relativePath, bars)
+    : await commitActionChunk(pool, lease, item.id, hash, relativePath, events);
+  if (!committed) return true;
   const pending = await pool.query(`SELECT 1 FROM import_chunks WHERE job_id = $1 AND status <> 'done' LIMIT 1`, [lease.id]);
   await changeStatus(pool, lease, pending.rowCount ? 'queued' : 'done', null, null);
   return true;

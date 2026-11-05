@@ -18,3 +18,8 @@ Remaining: worker normalization, correction handling, documentation and full val
 Decision: action jobs remain separate from EOD jobs so the existing Data-page status keeps its meaning.
 Verification: PostgreSQL planner and migration tests passed before the implementation commit.
 Remaining: worker normalization, correction handling, documentation and full validation.
+
+2026-11-05 — Add dividend/split parsing and worker dispatch through the existing quota and manifest path.
+Decision: retain adjusted and historical dividend values separately; same-day ambiguous events stay flagged.
+Verification: worker unit and isolated PostgreSQL import integration tests pass.
+Remaining: action reader, documentation, full gate and review.
