@@ -48,14 +48,14 @@ The archive owns source provenance; downstream indicators request a named snapsh
 flowchart LR
   classDef newEntity fill:#2f6feb,color:#fff,stroke:#1b4fb0
   classDef existingEntity fill:#e5e7eb,color:#111,stroke:#9ca3af
-  entity_1["SourceSymbol"]:::newEntity
+  entity_1["SourceSymbol"]:::existingEntity
   entity_2["IdentityLink"]:::newEntity
   entity_3["Instrument"]:::newEntity
-  entity_4["ImportJob"]:::newEntity
-  entity_5["ImportChunk"]:::newEntity
-  entity_6["RawFileManifest"]:::newEntity
-  entity_7["CoverageReport"]:::newEntity
-  entity_8["CoverageRow"]:::newEntity
+  entity_4["ImportJob"]:::existingEntity
+  entity_5["ImportChunk"]:::existingEntity
+  entity_6["RawFileManifest"]:::existingEntity
+  entity_7["CoverageReport"]:::existingEntity
+  entity_8["CoverageRow"]:::existingEntity
   entity_9["DataSnapshot"]:::newEntity
   entity_10["Canonical observation revisions"]:::existingEntity
   entity_1 -->|1-n| entity_2
@@ -68,20 +68,20 @@ flowchart LR
   entity_9 -->|n-n pinned revision refs| entity_10
 ```
 
-All nodes are proposed for Lesine; none currently exist in repository code. This Mermaid diagram is the current data-model view.
+Grey nodes exist in the current local EOD archive. Blue nodes belong to the separate identity and snapshot specifications linked below. This diagram shows the target relationships, not a claim that every node is already implemented on `main`.
 
 The approved App Spec §1.4 owns `Instrument`, `InstrumentIdentity`, `DailyBar`, `CorporateAction`, `IndexMembership`, `DataSeries`, `Observation`, `DataSnapshot` and `CoverageReport`. `IndexMembership` remains a future product concept, not a record imported by this feature. This feature adds local persistence records:
 
 | Record | Fields and constraints | Purpose |
 |---|---|---|
 | `SourceSymbol` | `id` text PK; `provider` text; `provider_symbol` text; nullable `provider_instrument_id` text; `identity_evidence_ref` text; `market_segment` enum Main/NewConnect/unclassified; `instrument_type` enum; `first_seen_at` UTC; `last_seen_at` UTC; `valid_from/to` nullable dates; `delisted_flag` boolean; unique `(provider, provider_instrument_id)` only when a stable provider ID is verified; no uniqueness on ticker text alone | Preserve a vendor listing identity even when a ticker is reused by another company at a later date. Ambiguous periods remain separate with their own evidence. |
-| `IdentityLink` (persistence of App Spec `InstrumentIdentity`) | `id` text PK; `source_symbol_id` FK; `instrument_id` FK; `valid_from` date; `valid_to` nullable date; `evidence_ref` text; `status` verified/superseded; unique non-overlapping verified intervals per source symbol | Join renamed symbols only with evidence. A source identity with no verified link stays unlinked and cannot enter a derived universe. |
+| `IdentityLink` (persistence of App Spec `InstrumentIdentity`) | Immutable batch reference; `source_symbol_id` FK; `instrument_id` FK; `valid_from` date; exclusive `valid_to` nullable date; evidence source/ref and assertion date; non-overlapping intervals per source symbol within a batch. See the [identity specification](2026-11-05-gpw-instrument-identities.md) for the exact file and schema contract. | Record owner-attested dated links without presenting their cited documents as independently verified. An unresolved source identity stays separate. |
 | `ImportJob` | `id` text PK; `provider` text; `market_scope` enum; `data_classes` array; `from_date/to_date` nullable; `scope_hash` text of canonical provider/market/data-class scope (independent of requested dates); `mode` backfill/incremental; `status` queued/running/quota_wait/paused/failed/done; `cursor` text nullable; `lease_token` text nullable, `lease_expires_at` UTC nullable; `started_at`, `updated_at` UTC; `error_code` nullable; partial unique `(provider, scope_hash)` when status is queued/running/quota_wait/paused | Durable exclusive claim and resume without reimporting finished work. A failed job may resume only if no conflicting active job exists. The lease token is internal and never returned by API. |
 | `ImportChunk` | `id` text PK; `job_id` FK; `resource_key` text; `from_date`, `to_date` date; `status` enum; `attempts` integer; `response_hash` nullable; `file_id` nullable; unique `(job_id, resource_key, from_date, to_date)` | One bounded request/response with idempotency and retry state. |
 | `RawFileManifest` | `id` text PK; `relative_path` text; `sha256` text; `provider` text; `data_class` text; `market_scope` text; `min_date`, `max_date` date; `row_count` integer; `created_at` UTC; `schema_version` integer; exact source-observation/revision-key index | Only committed manifest rows expose original provider-response files and their associated PostgreSQL revision refs. |
 | `CoverageRow` | `report_id` FK; `source_symbol_id` nullable FK; `market_segment` enum; `listing` active/delisted/unknown; `data_class` enum; `source` text; `acquired_from/to` nullable dates; `status` unavailable/unclassified/unknown; `gap_reason` and `evidence_ref` nullable text | Show archived data and import failures without inventing completeness. |
 
-`DataSnapshot` adds `as_of_utc`, `archive_generation` and `availability_evidence` to the App Spec's id, creation time, revision refs and availability-rule reference. The generation and immutable revision refs fix point-in-time selection without changing any existing schema, because the application is greenfield.
+`DataSnapshot` adds `as_of_utc`, `archive_generation` and availability evidence to the App Spec's id, creation time, revision refs and availability-rule reference. The generation and immutable revision refs require additive archive migrations; the [snapshot specification](2026-11-05-point-in-time-archive-snapshots.md) defines their migration order and compatibility rules.
 
 Original provider responses are private local files excluded from Git; normalized observations and their revisions are canonical PostgreSQL rows. `DailyBar` keeps provider, session date, OHLCV, availability and revision; the source response's `adjusted_close` may be retained as a source field but is not the canonical raw close. A provider correction creates a new revision and response file; old revisions and manifests stay addressable for existing snapshots. A response file is written to a temporary path, validated/checksummed and atomically renamed before one PostgreSQL transaction inserts its manifest, normalized revisions and completed chunk checkpoint. A crash before commit leaves an orphan file for quarantine or cleanup; a failed transaction never exposes partial normalized rows. PostgreSQL migrations are forward-only with a pre-migration local backup, since this is a greenfield app with no previous user data.
 
