@@ -22,3 +22,7 @@ Remaining: import status, UI, full gate, review, and moving the spec.
 Decision: `GET /api/import-jobs` still defaults to EOD; a `data_class` filter selects one action class.
 Verification: API build and four PostgreSQL integration tests pass, including parallel classes and quota wait.
 Remaining: Angular view, full gate, review, and spec archival.
+
+2026-11-05 — Mark class-specific status step 1.2 complete at bd653ba.
+Verification: both action-class responses and unchanged EOD default pass in the isolated database.
+Remaining: UI, full gate, review, and moving the spec.
