@@ -2,7 +2,7 @@
 
 Goals: Implement issue #18 from the accepted spec; deliver a reviewed, ready PR with tested UI flow.
 Specification: [2026-11-05-eodhd-catalog-ui-refresh.md](../specs/2026-11-05-eodhd-catalog-ui-refresh.md)
-Status: in-progress
+Status: done
 
 2026-11-05 — Start isolated implementation branch with a phase/step plan and draft PR for visibility.
 Decision: reuse the catalog parser, budget ledger, local API security and current `/data` table.
@@ -47,3 +47,7 @@ Verification: Angular build and all 6 UI tests passed. Remaining: publish screen
 2026-11-05 — Keep the catalog status live across overnight quota waits and ignore older overlapping poll responses.
 Decision: poll queued/running every 5 seconds and quota-wait every minute, then reload the list when a completed job appears.
 Verification: Angular suite passed (7 tests); screenshots were attached to PR #20. Remaining: final gate, review, PR handoff and cleanup.
+
+2026-11-05 — Complete the implementation plan, publish validation/review evidence on PR #20 and clean the isolated QA environment.
+Decision: hand off risk-high QA and native approval to an independent reviewer; the author review remains a documented self-check.
+Verification: final build passed, Compose API 8/8, worker 11/11, Angular 7/7, browser flow passed; no issue-18 Docker resources remain. Remaining implementation work: none.

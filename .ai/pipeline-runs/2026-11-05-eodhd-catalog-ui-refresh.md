@@ -1,6 +1,6 @@
 # EODHD catalog refresh from Data UI
 
-Status: in-progress
+Status: complete
 Source doc: .ai/specs/2026-11-05-eodhd-catalog-ui-refresh.md
 Issue: #18
 Spec PR: #19
@@ -32,6 +32,8 @@ The catalog view and new EOD job planning change semantics. Keep the legacy list
 
 ## Progress
 
+PR: #20
+
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Durable catalog
@@ -43,4 +45,4 @@ The catalog view and new EOD job planning change semantics. Keep the legacy list
 ### Phase 2: Owner UI
 
 - [x] 2.1 Add `/data` action, current-list confirmation, progress, failure and retry states. — 383523f
-- [ ] 2.2 Add tests, documentation and Compose/browser verification; run the configured gate and review.
+- [x] 2.2 Add tests, documentation and Compose/browser verification; run the configured gate and review. — 11e9cde
