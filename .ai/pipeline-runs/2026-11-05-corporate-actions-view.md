@@ -34,7 +34,7 @@ An ex-date is not publication evidence. Reads must validate manifest hashes with
 
 ### Phase 1: API
 
-- [ ] 1.1 Add paginated action and revision endpoints with validated filters and archive-integrity handling; cover them with database integration tests.
+- [x] 1.1 Add paginated action and revision endpoints with validated filters and archive-integrity handling; cover them with database integration tests. — 14fa745
 - [ ] 1.2 Add class-filtered import-job status while preserving the existing EOD default; cover parallel classes and error states.
 
 ### Phase 2: UI and completion
