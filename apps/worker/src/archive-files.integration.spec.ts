@@ -49,6 +49,16 @@ test('legacy response files remain referenced before and after the manifest migr
         await pool.query(await readFile(resolve('db/migrations/004_immutable_eod_archive.sql'), 'utf8'));
         assert.deepEqual(await verifyArchive(pool, true), { files: 1, legacyChunks: 1 });
         assert.equal((await readFile(response, 'utf8')), raw, 'old file must not be quarantined');
+        await pool.query(await readFile(resolve('db/migrations/005_catalog_refresh.sql'), 'utf8'));
+        const stagedRaw = '[{"Code":"STAGED"}]';
+        const stagedHash = createHash('sha256').update(stagedRaw).digest('hex');
+        await mkdir(join(directory, 'catalog'));
+        await writeFile(join(directory, 'catalog', `${stagedHash}.json`), stagedRaw);
+        await pool.query(`INSERT INTO catalog_refresh_jobs(id, provider, origin, status,
+          active_sha256, active_count, active_fetched_at) VALUES
+          ($1, 'eodhd', 'eodhd_war_pair', 'failed', $2, 1, now())`, [randomUUID(), stagedHash]);
+        assert.deepEqual(await verifyArchive(pool), { files: 2, legacyChunks: 1 },
+          'a staged response must remain in backups even before a probe or publication');
       } finally { await pool.end(); }
     } finally {
       if (originalRoot === undefined) delete process.env.LESINE_RESPONSE_DIR;

@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, ViewChild, signal } from '@angular/core';
 
 type CatalogRow = {
   id: string;
@@ -9,10 +9,12 @@ type CatalogRow = {
   identity_evidence_ref: string;
 };
 type CatalogResponse = {
-  data: { status: string; expected_scope_status: string; rights_status: string; checked_at: string | null; count: number; rows: CatalogRow[]; sample: { listing_state: string; status: string; error_code: string | null }[]; depth_sample: { listing_state: string; data_class: string; provider_symbol: string; sample_from: string; sample_to: string; earliest_observed: string | null; latest_observed: string | null; status: string }[] };
+  data: { status: string; expected_scope_status: string; rights_status: string; checked_at: string | null; current_catalog_id: string | null; catalog_origin: string | null; count: number; rows: CatalogRow[]; sample: { listing_state: string; status: string; error_code: string | null }[]; depth_sample: { listing_state: string; data_class: string; provider_symbol: string; sample_from: string; sample_to: string; earliest_observed: string | null; latest_observed: string | null; status: string }[] };
   page: { next_cursor: string | null };
 };
 type ImportJob = { id: string; status: string; completed_chunks: number; total_chunks: number; cursor: string | null;
+  error_code: string | null; retry_after_utc: string | null; updated_at: string };
+type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_saved: boolean;
   error_code: string | null; retry_after_utc: string | null; updated_at: string };
 
 @Component({
@@ -22,6 +24,32 @@ type ImportJob = { id: string; status: string; completed_chunks: number; total_c
       <p class="eyebrow">LOKALNE DANE RYNKOWE</p>
       <h1>Dane GPW</h1>
       <p>Stan katalogu źródła. Kompletność historycznych notowań nie została jeszcze potwierdzona.</p>
+      <section class="status" aria-label="Pobieranie katalogu">
+        <h2>Katalog instrumentów</h2>
+        @if (catalog(); as currentCatalog) {
+          <p>W lokalnym katalogu: <strong>{{ currentCatalog.data.count }}</strong> {{ tickerWord(currentCatalog.data.count, 'ticker') }}.</p>
+          <button #refreshTrigger type="button" (click)="startCatalogRefresh()" [disabled]="catalogBusy() || catalogJob()?.status === 'queued' || catalogJob()?.status === 'running' || catalogJob()?.status === 'quota_wait'">
+            {{ currentCatalog.data.count ? 'Pobierz katalog ponownie' : 'Pobierz katalog spółek' }}
+          </button>
+        }
+        @if (catalogJob(); as currentJob) {
+          <p role="status">Pobieranie katalogu: {{ jobLabel(currentJob.status) }}. Lista aktywna: {{ currentJob.active_saved ? 'zapisana' : 'oczekuje' }}; wycofana: {{ currentJob.delisted_saved ? 'zapisana' : 'oczekuje' }}.</p>
+          @if (currentJob.error_code) { <p role="alert">Przyczyna: {{ errorLabel(currentJob.error_code) }}. Bieżący katalog pozostaje dostępny.</p> }
+          @if (currentJob.retry_after_utc) { <p>Możliwa kolejna próba: {{ currentJob.retry_after_utc }}</p> }
+          @if (currentJob.status === 'failed' || (currentJob.status === 'quota_wait' && retryReady(currentJob.retry_after_utc))) {
+            <button type="button" (click)="resumeCatalogRefresh()" [disabled]="catalogBusy()">Ponów pobieranie katalogu</button>
+          }
+        }
+        <button type="button" (click)="refreshCatalogJob()">Odśwież stan katalogu</button>
+        @if (catalogError()) { <p role="alert">Nie udało się wykonać operacji katalogu. Sprawdź stan i spróbuj ponownie.</p> }
+        @if (catalogChanged()) { <p role="alert">Katalog zmienił się w międzyczasie. Sprawdź aktualną listę i ponownie zdecyduj o pobraniu.</p> }
+      </section>
+      <dialog #confirmDialog (cancel)="cancelCatalogRefresh()" aria-labelledby="catalog-confirm-title">
+        <h2 id="catalog-confirm-title">Pobrać katalog ponownie?</h2>
+        <p>Widoczna lista {{ catalog()?.data?.count }} {{ tickerWord(catalog()?.data?.count ?? 0, 'tickera') }} zostanie zastąpiona po pobraniu obu części katalogu. Zapisane dane historyczne pozostaną dostępne.</p>
+        <button type="button" (click)="cancelCatalogRefresh()">Anuluj</button>
+        <button type="button" (click)="confirmCatalogRefresh()">Potwierdź pobranie</button>
+      </dialog>
       <section class="status" aria-label="Import notowań">
         <h2>Import notowań</h2>
         @if (job(); as current) {
@@ -47,10 +75,12 @@ type ImportJob = { id: string; status: string; completed_chunks: number; total_c
           <p>Potwierdzony zakres GPW: <strong>nieznany</strong></p>
           <p>Uprawnienia do retencji danych dla konta: <strong>niezweryfikowane</strong></p>
           <p>Liczba lokalnych rekordów źródła: <strong>{{ result.data.count }}</strong></p>
-          @if (result.data.checked_at) { <p>Ostatnia próba: {{ result.data.checked_at }}</p> }
+          @if (result.data.checked_at) { <p>Ostatnio opublikowany katalog: {{ result.data.checked_at }}</p> }
+          @if (result.data.catalog_origin === 'legacy') { <p>Zastany katalog — data publikacji nieznana.</p> }
           @if (result.data.status === 'empty') { <p role="status">Brak pobranych danych. Nie wykonano jeszcze próby odczytu źródła.</p> }
           @if (result.data.status === 'unavailable') { <p role="status">Źródło jest niedostępne lub brak dostępu. Dane nie są oznaczone jako kompletne.</p> }
-          @if (result.data.status === 'partial') { <p role="status">Próbka źródła jest częściowa. Nie wszystkie listy były dostępne.</p> }
+          @if (result.data.status === 'partial' && result.data.catalog_origin === 'legacy') { <p role="status">Zastany katalog nie potwierdza, czy pobrano obie listy WAR.</p> }
+          @if (result.data.status === 'partial' && result.data.catalog_origin !== 'legacy') { <p role="status">Próbka źródła jest częściowa. Nie wszystkie listy były dostępne.</p> }
           @for (sample of result.data.sample; track sample.listing_state) {
             <p>{{ sample.listing_state === 'active' ? 'Aktywne' : 'Wycofane' }}: {{ statusLabel(sample.status) }} @if (sample.error_code) { ({{ errorLabel(sample.error_code) }}) }</p>
           }
@@ -90,7 +120,9 @@ type ImportJob = { id: string; status: string; completed_chunks: number; total_c
     </section>
   `,
 })
-export class DataPage {
+export class DataPage implements OnDestroy {
+  @ViewChild('confirmDialog') private confirmDialog?: ElementRef<HTMLDialogElement>;
+  @ViewChild('refreshTrigger') private refreshTrigger?: ElementRef<HTMLButtonElement>;
   readonly catalog = signal<CatalogResponse | null>(null);
   readonly loading = signal(true);
   readonly error = signal(false);
@@ -99,14 +131,22 @@ export class DataPage {
   readonly job = signal<ImportJob | null>(null);
   readonly jobBusy = signal(false);
   readonly jobError = signal(false);
+  readonly catalogJob = signal<CatalogJob | null>(null);
+  readonly catalogBusy = signal(false);
+  readonly catalogError = signal(false);
+  readonly catalogChanged = signal(false);
   private cursor: string | null = null;
   private requestSequence = 0;
+  private catalogTimer: ReturnType<typeof setInterval> | null = null;
+  private catalogTimerInterval: number | null = null;
+  private lastCatalogJobStatus: string | null = null;
+  private catalogJobRequestSequence = 0;
 
   statusLabel(status: string): string {
     return ({ available: 'dostępne', unavailable: 'niedostępne', quota_wait: 'oczekiwanie na limit', empty: 'brak rekordów' } as Record<string, string>)[status] ?? 'nieznany';
   }
   errorLabel(code: string): string {
-    return ({ missing_credential: 'brak klucza dostawcy', daily_budget_reached: 'dzienny budżet wyczerpany', provider_rate_limit: 'limit dostawcy', source_unavailable: 'źródło niedostępne', invalid_catalog_payload: 'nieprawidłowa odpowiedź źródła' } as Record<string, string>)[code] ?? 'wymaga sprawdzenia';
+    return ({ missing_credential: 'brak klucza dostawcy', daily_budget_reached: 'dzienny budżet wyczerpany', provider_rate_limit: 'limit dostawcy', source_unavailable: 'źródło niedostępne', invalid_catalog_payload: 'nieprawidłowa odpowiedź źródła', budget_below_catalog_minimum: 'ustawiony limit nie pozwala pobrać obu list', stale_catalog_part: 'części katalogu są zbyt odległe w czasie' } as Record<string, string>)[code] ?? 'wymaga sprawdzenia';
   }
   classLabel(dataClass: string): string {
     return ({ eod: 'notowania EOD', dividends: 'dywidendy', splits: 'splity' } as Record<string, string>)[dataClass] ?? 'inne dane';
@@ -116,7 +156,93 @@ export class DataPage {
     return ({ queued: 'w kolejce', running: 'w trakcie', quota_wait: 'oczekuje na limit', paused: 'wstrzymany', failed: 'nieudany', done: 'zakończony' } as Record<string, string>)[status] ?? 'nieznany';
   }
 
-  constructor() { void this.load(); void this.refreshJob(); }
+  constructor() { void this.load(); void this.refreshJob(); void this.refreshCatalogJob(); }
+
+  ngOnDestroy(): void { if (this.catalogTimer) clearInterval(this.catalogTimer); }
+
+  retryReady(utc: string | null): boolean { return !utc || Date.parse(utc) <= Date.now(); }
+
+  tickerWord(count: number, singular: 'ticker' | 'tickera'): string {
+    if (count === 1) return singular;
+    return count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14) ? 'tickery' : 'tickerów';
+  }
+
+  async refreshCatalogJob(): Promise<void> {
+    const sequence = ++this.catalogJobRequestSequence;
+    try {
+      const response = await fetch('/api/catalog-refreshes/latest');
+      if (!response.ok) throw new Error('catalog_job_unavailable');
+      const next = ((await response.json()) as { data: CatalogJob | null }).data;
+      if (sequence !== this.catalogJobRequestSequence) return;
+      this.catalogJob.set(next);
+      this.catalogError.set(false);
+      if (next?.status === 'done' && this.lastCatalogJobStatus && this.lastCatalogJobStatus !== 'done') {
+        this.cursor = null;
+        await this.load();
+      }
+      this.lastCatalogJobStatus = next?.status ?? null;
+      const interval = next?.status === 'quota_wait' ? 60_000 :
+        next && ['queued', 'running'].includes(next.status) ? 5_000 : null;
+      if (interval !== this.catalogTimerInterval) {
+        if (this.catalogTimer) clearInterval(this.catalogTimer);
+        this.catalogTimer = interval ? setInterval(() => void this.refreshCatalogJob(), interval) : null;
+        this.catalogTimerInterval = interval;
+      }
+    } catch { if (sequence === this.catalogJobRequestSequence) this.catalogError.set(true); }
+  }
+
+  startCatalogRefresh(): void {
+    const current = this.catalog();
+    if (!current || this.catalogBusy() || ['queued', 'running', 'quota_wait'].includes(this.catalogJob()?.status ?? '')) return;
+    if (current.data.count > 0) this.confirmDialog?.nativeElement.showModal();
+    else void this.queueCatalogRefresh(false);
+  }
+
+  cancelCatalogRefresh(): void {
+    this.confirmDialog?.nativeElement.close();
+    this.refreshTrigger?.nativeElement.focus();
+  }
+
+  async confirmCatalogRefresh(): Promise<void> {
+    this.confirmDialog?.nativeElement.close();
+    this.refreshTrigger?.nativeElement.focus();
+    await this.queueCatalogRefresh(true);
+  }
+
+  private async catalogPost(url: string, payload: unknown): Promise<Response> {
+    const session = await fetch('/api/session');
+    if (!session.ok) throw new Error('session_unavailable');
+    const token = ((await session.json()) as { data: { csrf_token: string } }).data.csrf_token;
+    return fetch(url, { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Lesine-CSRF': token }, body: JSON.stringify(payload) });
+  }
+
+  private async queueCatalogRefresh(replaceExisting: boolean): Promise<void> {
+    const expected = this.catalog()?.data.current_catalog_id ?? null;
+    this.catalogBusy.set(true);
+    this.catalogError.set(false);
+    this.catalogChanged.set(false);
+    try {
+      const response = await this.catalogPost('/api/catalog-refreshes', { expected_catalog_id: expected, replace_existing: replaceExisting });
+      if (response.status === 409) { this.cursor = null; await this.load(); this.catalogChanged.set(true); return; }
+      if (!response.ok) throw new Error('refresh_failed');
+      await this.refreshCatalogJob();
+    } catch { this.catalogError.set(true); }
+    finally { this.catalogBusy.set(false); }
+  }
+
+  async resumeCatalogRefresh(): Promise<void> {
+    const current = this.catalogJob();
+    if (!current || !['failed', 'quota_wait'].includes(current.status)) return;
+    this.catalogBusy.set(true);
+    this.catalogError.set(false);
+    try {
+      const response = await this.catalogPost(`/api/catalog-refreshes/${current.id}/resume`, {});
+      if (!response.ok) throw new Error('resume_failed');
+      await this.refreshCatalogJob();
+    } catch { this.catalogError.set(true); }
+    finally { this.catalogBusy.set(false); }
+  }
 
   async refreshJob(): Promise<void> {
     try {
@@ -165,8 +291,13 @@ export class DataPage {
     this.error.set(false);
     try {
       const params = new URLSearchParams({ market: this.market(), listing: this.listing() });
-      if (this.cursor) params.set('after', this.cursor);
+      if (this.cursor) {
+        params.set('after', this.cursor);
+        const catalogId = this.catalog()?.data.current_catalog_id;
+        if (catalogId) params.set('catalog_id', catalogId);
+      }
       const response = await fetch(`/api/catalog?${params.toString()}`);
+      if (response.status === 409 && this.cursor) { this.cursor = null; void this.load(); return; }
       if (!response.ok) throw new Error('catalog_unavailable');
       const catalog = await response.json() as CatalogResponse;
       if (sequence === this.requestSequence) this.catalog.set(catalog);
