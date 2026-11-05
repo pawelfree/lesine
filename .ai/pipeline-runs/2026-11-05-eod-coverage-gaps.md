@@ -35,8 +35,8 @@ The report must not infer trading days or full source depth from completed reque
 
 ### Phase 1: Report storage and API
 
-- [ ] 1.1 Add forward-only report schema and a consistent, evidence-derived coverage calculator with safe null/stale semantics.
-- [ ] 1.2 Add filtered, paginated `GET /api/coverage` and integration tests for unknown scope, identities, gaps, refresh transitions and corrections.
+- [x] 1.1 Add forward-only report schema and a consistent, evidence-derived coverage calculator with safe null/stale semantics. — 4bf3fa1
+- [x] 1.2 Add filtered, paginated `GET /api/coverage` and integration tests for unknown scope, identities, gaps, refresh transitions and corrections. — 4bf3fa1
 
 ### Phase 2: Data page and verification
 

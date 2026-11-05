@@ -11,3 +11,7 @@ Verification: plan checked against the accepted spec. Remaining: implementation,
 2026-11-05 — Added migration 006, local report generation, filtered coverage API and database integration checks.
 Decision: transactionally bump a report-input revision on catalog, identity and import changes; preserve old immutable reports and return null counts before any report exists.
 Verification: Node 24 API build and isolated PostgreSQL coverage integration test passed. Remaining: `/data` UI, broader validation, review and UI evidence.
+
+2026-11-05 — Marked both Phase 1 plan steps complete at commit 4bf3fa1.
+Decision: one tested phase commit covers schema/calculator and the API contract together.
+Remaining: Phase 2 UI, final validation and PR handoff.
