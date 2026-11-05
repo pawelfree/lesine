@@ -23,3 +23,7 @@ Verification: Angular tests passed (10/10); isolated Compose/browser smoke showe
 2026-11-05 — Marked Phase 2 plan steps complete after the full build and browser verification.
 Decision: published screenshots on a separate QA evidence branch; removed the isolated Compose stack, volumes, images and browser session.
 Remaining: authoritative PR review and final handoff.
+
+2026-11-05 — Added an integration assertion that old cursors fail after report regeneration.
+Decision: cover generation binding explicitly, following the review of the API pagination contract.
+Verification: focused PostgreSQL integration test passed in a disposable container. Remaining: complete the review and PR handoff.

@@ -105,13 +105,20 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
       await assert.rejects(() => controller.get({ limit: '1', market: 'main', cursor: pageOne.page.next_cursor }),
         (error: unknown) => (error as { status?: number }).status === 400);
 
+      await pool.query('UPDATE source_symbols SET display_name = $2 WHERE id = $1', [activeId, 'Renamed']);
+      const revised = await controller.get({}) as { data: { report_id: string } };
+      assert.notEqual(revised.data.report_id, pageOne.data.report_id);
+      await assert.rejects(() => controller.get({ limit: '1', cursor: pageOne.page.next_cursor }),
+        (error: unknown) => (error as { status?: number }).status === 400,
+        'a cursor cannot cross report generations');
+
       await pool.query(`CREATE FUNCTION fail_coverage_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN RAISE EXCEPTION 'fixture failure'; END $$`);
       await pool.query(`CREATE TRIGGER fail_coverage_report BEFORE INSERT ON eod_coverage_reports
         FOR EACH ROW EXECUTE FUNCTION fail_coverage_fixture()`);
       await pool.query('UPDATE source_symbols SET display_name = $2 WHERE id = $1', [activeId, 'Changed']);
       const stale = await controller.get({}) as { data: { report_id: string; refresh_status: string; refresh_error_code: string } };
-      assert.equal(stale.data.report_id, pageOne.data.report_id);
+      assert.equal(stale.data.report_id, revised.data.report_id);
       assert.equal(stale.data.refresh_status, 'stale');
       assert.equal(stale.data.refresh_error_code, 'coverage_refresh_failed');
       await assert.rejects(() => controller.get({ source: 'unknown' }), (error: unknown) => (error as { status?: number }).status === 400);
