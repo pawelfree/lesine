@@ -1,6 +1,6 @@
 # Remove expected coverage from Lesine
 
-Goals: Remove the expected market/catalog/session range concept from active requirements, API, UI, schema and tests; preserve acquired data and import behavior.
+Goals: Remove expected and provider-availability coverage fields and inferred calendar-interval warnings from active requirements, API, UI, schema and tests; preserve acquired data and import behavior.
 Specification: [2026-11-05-remove-expected-coverage.md](../specs/2026-11-05-remove-expected-coverage.md)
 Status: in-progress
 
@@ -19,3 +19,7 @@ Remaining: independent review and QA, then merge and deploy after a coordinated 
 Decision: preserve immutable historical report data while suppressing obsolete API messages.
 Verification: Node 24 Docker build, npm tests, isolated Compose smoke and five PostgreSQL integration tests passed; temporary resources removed.
 Remaining: independent review and QA, then merge and deploy after a coordinated backup.
+2026-11-05 — Add an upgrade regression for a populated pre-007 archive and align the implemented coverage spec with the removed completeness status.
+Decision: keep the forward-only migration and documented backup/restore rollback; verify existing bars and immutable reports survive upgrade.
+Verification: exact Node 24 build, npm tests, six PostgreSQL integration tests and isolated Compose smoke passed; temporary resources removed.
+Remaining: GitHub review and visual QA, then merge and deploy after a coordinated backup.

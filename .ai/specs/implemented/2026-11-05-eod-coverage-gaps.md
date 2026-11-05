@@ -2,7 +2,7 @@
 
 ## 📝 TLDR
 
-The owner can see the source catalog and import progress on `/data`, but cannot inspect which EOD dates are locally archived or why the archive is incomplete. This specification defines a dated EOD coverage report and filterable gap details derived from committed local evidence. Unknown source scope and provider depth remain explicit. Implementation is tracked in PR #23.
+The owner can see the source catalog and import progress on `/data`, but cannot inspect which EOD dates are locally archived or which import requests remain unfinished. This specification defines a dated EOD report and filterable import evidence derived from committed local data. Provider depth remains unverified. Implementation is tracked in PR #23.
 
 ## Resolved assumptions (autonomous defaults)
 
@@ -20,7 +20,7 @@ The problem is an owner requirement, not an observed loss or a validated investm
 
 ## 📝 Proposed Solution
 
-Add one read-only EOD coverage capability: derive a versioned report from committed local archive evidence, serve it through `GET /api/coverage`, and display its timestamp, separate ranges, filters and gap evidence on `/data`. Refreshing the report makes **no provider request and uses no EODHD quota**. Each generation records its source-catalog id and archive watermark.
+Add one read-only EOD coverage capability: derive a versioned report from committed local archive evidence, serve it through `GET /api/coverage`, and display its timestamp, acquired range, filters and import evidence on `/data`. Refreshing the report makes **no provider request and uses no EODHD quota**. Each generation records its source-catalog id and archive watermark.
 
 This follows the accepted [low-fidelity `/data` reference](../assets/local-gpw-history/data-coverage-wireframe.md), accepted on 2026-11-04 for the archive coverage page. This issue excludes provider history acquisition, exchange calendars, instrument identity linking, corporate actions, index membership, barometer calculation and trading. Those are independent capabilities in the parent spec. An EOD view never labels the full GPW archive complete.
 
@@ -113,7 +113,7 @@ No new mockup was made during this spec run because there is no prepared test-en
 
 ## 📝 Risks & Impact Review
 
-The primary risk is presenting request coverage or a one-year sample as historical completeness. Null semantics and the scope-bound `complete` rule prevent that. Report tables and API are local contracts; future changes require migration/client coordination under [BACKWARD_COMPATIBILITY.md](../../../BACKWARD_COMPATIBILITY.md). A pre-migration coordinated backup is required. Browser cache is display-only and cannot satisfy a research snapshot or validation run.
+The primary risk is presenting request coverage or a one-year sample as historical completeness. The report shows only acquired observations and explicit import evidence; it makes no completeness claim. Report tables and API are local contracts; future changes require migration/client coordination under [BACKWARD_COMPATIBILITY.md](../../../BACKWARD_COMPATIBILITY.md). A pre-migration coordinated backup is required. Browser cache is display-only and cannot satisfy a research snapshot or validation run.
 
 Research check: [QuantConnect's history guidance](https://www.quantconnect.com/docs/v2/writing-algorithms/historical-data/history-responses) notes that absent points can reflect illiquidity, pre-IPO dates or data issues; its [data-issue guidance](https://www.quantconnect.com/docs/v2/cloud-platform/datasets/data-issues) also names halts and delistings. Lesine adopts the narrower lesson that an absent calendar date needs classification evidence before becoming a confirmed data gap. Fill-forward and a security master are outside issue #5.
 
