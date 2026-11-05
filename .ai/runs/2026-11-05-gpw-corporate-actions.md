@@ -28,3 +28,8 @@ Remaining: action reader, documentation, full gate and review.
 Decision: later corrections use new revisions; repeated unchanged responses link the existing revision.
 Verification: relevant worker tests passed against the isolated PostgreSQL server.
 Remaining: action reader, documentation, full gate and review.
+
+2026-11-05 — Add source-backed action reads and serialize overlapping action commits by source/class.
+Decision: a cutoff selects the newest retained revision known to the local archive by that time.
+Verification: API reader and worker import integration tests pass against isolated PostgreSQL.
+Remaining: documentation, full build/smoke gate and PR review.

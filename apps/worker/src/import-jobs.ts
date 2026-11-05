@@ -136,6 +136,9 @@ export async function commitActionChunk(pool: Pool, lease: Lease, chunkId: strin
     if (!item || !['dividends', 'splits'].includes(item.data_class) ||
       events.some((event) => event.dataClass !== item.data_class || event.exDate < item.from_date ||
         event.exDate > item.to_date)) { await client.query('ROLLBACK'); return false; }
+    // Jobs with different market scopes may still cover the same source identity.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,
+      [`eodhd:${item.resource_key}:${item.data_class}`]);
     const manifestId = randomUUID();
     const dates = events.map((event) => event.exDate).sort();
     await client.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider,
