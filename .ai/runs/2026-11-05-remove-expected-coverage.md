@@ -8,3 +8,6 @@ Status: in-progress
 Decision: retain the unrelated optimistic-concurrency `expected_catalog_id` and old immutable report generations; a revision bump makes the new report current.
 Verification: Node 24 Docker build, npm tests, isolated Compose smoke and four PostgreSQL integration tests passed; temporary containers, volumes and images removed.
 Remaining: independent PR review and QA before merge, then deploy the migration after a coordinated backup.
+2026-11-05 — Align the tracked E02 backlog row with the owner decision and update open GitHub epic #2 and issue #7.
+Decision: retained-source accounting replaces the removed expectation denominator in future archive work.
+Remaining: PR #25 review and QA, then merge and deploy after backup.

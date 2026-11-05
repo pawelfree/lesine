@@ -18,6 +18,6 @@ Last filed: 2026-11-05
 | E01-S03 | [#5](https://github.com/pawelfree/lesine/issues/5) | Widok zakresów EOD i luk | #1 | E01-S02 (#4) | no |
 | E02 | [#2](https://github.com/pawelfree/lesine/issues/2) | Kompletność historii i korekty | — | E01 (#1) | no |
 | E02-S01 | [#6](https://github.com/pawelfree/lesine/issues/6) | Działania, tożsamości i trwałe migawki | #2 | E01-S02 (#4) | no |
-| E02-S02 | [#7](https://github.com/pawelfree/lesine/issues/7) | Status każdego elementu potwierdzonego katalogu | #2 | E02-S01 (#6) | no |
+| E02-S02 | [#7](https://github.com/pawelfree/lesine/issues/7) | Status zapisanych danych i ograniczeń źródła | #2 | E02-S01 (#6) | no |
 
 The parent of each task is its `Story:` link in the GitHub issue body. A dependency names prerequisite work; it does not imply that its parent story is complete. Q06 blocks acceptance on a real GPW source sample, and Q03 blocks full-history completeness claims. Neither blocks fixture-based implementation of the import and archive mechanisms.
