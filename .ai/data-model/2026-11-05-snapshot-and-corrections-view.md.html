@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pl">
+<meta charset="utf-8">
+<title>Model danych: żądania migawek</title>
+<style>
+  body { font: 16px system-ui, sans-serif; margin: 0; color: #17212b; }
+  header { padding: 1rem; }
+  svg { width: 100vw; height: 75vh; background: #f8fafc; cursor: grab; }
+  svg:active { cursor: grabbing; }
+  .edge { stroke: #64748b; stroke-width: 2; }
+  .label { fill: #334155; font-size: 13px; }
+  .node { cursor: pointer; }
+  .dim { opacity: .2; }
+</style>
+<header><h1>Żądania i zapisane migawki</h1><p>Niebieski: nowa lub zmieniona encja. Szary: istniejąca. Przeciągnij, przewiń, kliknij węzeł.</p></header>
+<svg id="diagram" role="img" aria-label="Relacje żądania migawki z archiwum"></svg>
+<script>
+const nodes = [
+  {id:'entity_1', label:'snapshot_requests: id, scope, status', x:60, y:80, kind:'new'},
+  {id:'entity_2', label:'data_snapshots: request_id unique FK', x:420, y:80, kind:'new'},
+  {id:'entity_3', label:'snapshot_bar_revisions', x:850, y:40, kind:'existing'},
+  {id:'entity_4', label:'snapshot_action_revisions', x:850, y:130, kind:'existing'},
+  {id:'entity_5', label:'snapshot_scope_manifests', x:850, y:220, kind:'existing'},
+  {id:'entity_6', label:'identity_batches', x:420, y:260, kind:'existing'}
+];
+const edges = [
+  ['entity_1','entity_2','1-0..1'], ['entity_2','entity_3','1-n'],
+  ['entity_2','entity_4','1-n'], ['entity_2','entity_5','1-n'],
+  ['entity_2','entity_6','n-1']
+];
+const svg = document.getElementById('diagram');
+const ns = 'http://www.w3.org/2000/svg';
+const group = document.createElementNS(ns, 'g');
+svg.appendChild(group);
+let focused = null;
+for (const [a,b,cardinality] of edges) {
+  const from = nodes.find(n => n.id === a), to = nodes.find(n => n.id === b);
+  const line = document.createElementNS(ns,'line');
+  line.setAttribute('x1',from.x+110); line.setAttribute('y1',from.y+22);
+  line.setAttribute('x2',to.x+110); line.setAttribute('y2',to.y+22);
+  line.setAttribute('class','edge'); group.appendChild(line);
+  const label = document.createElementNS(ns,'text');
+  label.setAttribute('x',(from.x+to.x)/2+110); label.setAttribute('y',(from.y+to.y)/2+10);
+  label.setAttribute('class','label'); label.textContent=cardinality; group.appendChild(label);
+}
+const elements = new Map();
+for (const n of nodes) {
+  const g = document.createElementNS(ns,'g'); g.setAttribute('class','node');
+  const rect = document.createElementNS(ns,'rect'); rect.setAttribute('x',n.x); rect.setAttribute('y',n.y);
+  rect.setAttribute('width',300); rect.setAttribute('height',46); rect.setAttribute('rx',8);
+  rect.setAttribute('fill',n.kind==='new'?'#2f6feb':'#e5e7eb'); g.appendChild(rect);
+  const text = document.createElementNS(ns,'text'); text.setAttribute('x',n.x+12); text.setAttribute('y',n.y+28);
+  text.setAttribute('fill',n.kind==='new'?'#fff':'#111'); text.textContent=n.label; g.appendChild(text);
+  g.addEventListener('click',e=>{e.stopPropagation(); focused=focused===n.id?null:n.id; update();});
+  group.appendChild(g); elements.set(n.id,g);
+}
+function update() { for (const [id,g] of elements) {
+  const linked=edges.some(([a,b])=>(a===focused&&b===id)||(b===focused&&a===id));
+  g.classList.toggle('dim',!!focused&&id!==focused&&!linked);
+} }
+svg.addEventListener('click',()=>{focused=null;update();});
+let scale=1, tx=0, ty=0, drag=null;
+function transform(){group.setAttribute('transform',`translate(${tx} ${ty}) scale(${scale})`);}
+svg.addEventListener('pointerdown',e=>{drag={x:e.clientX-tx,y:e.clientY-ty};svg.setPointerCapture(e.pointerId);});
+svg.addEventListener('pointermove',e=>{if(drag){tx=e.clientX-drag.x;ty=e.clientY-drag.y;transform();}});
+svg.addEventListener('pointerup',()=>{drag=null;});
+svg.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(.5,Math.min(2.5,scale*(e.deltaY<0?1.1:.9)));transform();},{passive:false});
+</script>
+</html>
