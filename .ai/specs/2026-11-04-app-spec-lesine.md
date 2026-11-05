@@ -14,7 +14,7 @@
 
 ## 1. Business Context `PM`
 
-**Document status:** Confirmed by the owner on 2026-11-04. Provider access and measured performance remain unverified implementation gates, explicitly marked below. Future feature specs must cite this document.
+**Document status:** Confirmed by the owner on 2026-11-04. Provider access and measured performance remain unverified implementation gates, explicitly marked below. Future feature specs must cite this document. On 2026-11-05 the owner removed historical index-constituent import from the current E02 archive issues; the longer-term product concept remains deferred until a source and separate task are chosen.
 
 ### 1.1 Business Model
 
@@ -604,7 +604,7 @@ The commit boundaries are recorded once in `app-spec-notes/commit-plan.md` and r
 |---|---|---:|
 | US-1.1–1.3 | Resumable import, revisions, universe reconciliation, local coverage page | 10 |
 
-**Domain criteria (DDD):** raw observations keep source/date/revision/availability; repeat imports are idempotent; delisted instruments remain addressable; corrections produce new snapshots and mark dependent outputs stale; reports show acquired data and import state. **Business criteria (PM):** owner can import and reopen the archive after restart, inspect acquired dates for Main Market/NewConnect, and see why an instrument or action is absent. **Value/ROI:** reusable local research archive with source provenance and visible import limitations. **Workaround:** if historic constituents are unavailable, retain a documented gap; do not invent membership. **PM challenge:** a complete historical index membership record is not required to finish this phase when the provider lacks it, but a visible gap is essential. **Estimate:** 10 commits.
+**Domain criteria (DDD):** raw observations keep source/date/revision/availability; repeat imports are idempotent; delisted instruments remain addressable; corrections produce new snapshots and mark dependent outputs stale; reports show acquired data and import state. **Business criteria (PM):** owner can import and reopen the archive after restart, inspect acquired dates for Main Market/NewConnect, and see why an instrument or action is absent. **Value/ROI:** reusable local research archive with source provenance and visible import limitations. **Historical index constituents:** excluded from the current E02 archive issues by the owner on 2026-11-05; no import or coverage row is required in this phase. A future task must identify an authorized source before adding them. **Estimate:** 10 commits.
 
 ### Phase 2: One daily declarative barometer (WF2)
 
