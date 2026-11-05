@@ -62,3 +62,7 @@ Remaining: independent high-risk review and QA before merge.
 2026-11-05 — Commit adds archive-generation wiring for installations where snapshot migration 010 ran first.
 Decision: migration 010 supplies the same trigger when action migration 008 ran first.
 Remaining: cross-order migration test, build, re-review and PR update.
+
+2026-11-05 — Commit adds a PostgreSQL regression test for action migration after snapshot generation.
+Verification: the conditional trigger increments and records generation 2; six import regressions and full build pass.
+Remaining: re-review and final PR handoff.
