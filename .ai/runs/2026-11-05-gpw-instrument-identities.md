@@ -16,3 +16,7 @@ Remaining: formal review, any fixes and final PR status.
 2026-11-05 — Commit records completed plan steps 1.1–3.1 after implementation commit fc8b8f7.
 Decision: full build, isolated database tests and Compose smoke passed; temporary infrastructure was removed.
 Remaining: code review, findings if any, and PR completion.
+
+2026-11-05 — Commit rejects duplicate JSON keys and ambiguous overlapping uses of the same provider symbol.
+Decision: compatibility notes now name the new CLI, API and private evidence mount.
+Remaining: finish PR review and publish final verification evidence.
