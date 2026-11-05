@@ -23,15 +23,15 @@ Goal: Persist immutable, provenance-checked revision references for reproducible
 
 ### Phase 1: Immutable EOD snapshots
 
-- [ ] 1.1 Add schema, archive generation and bounded repeatable-read creator.
-- [ ] 1.2 Test cutoff, correction, unknown availability and atomic failure.
+- [x] 1.1 Add schema, archive generation and bounded repeatable-read creator. — a470a4d
+- [x] 1.2 Test cutoff, correction, unknown availability and atomic failure. — a470a4d
 
 ### Phase 2: Provenance-checked reading
 
-- [ ] 2.1 Implement read contract with exact revision and file verification.
-- [ ] 2.2 Test old snapshot after correction, missing file and backup/restore.
+- [x] 2.1 Implement read contract with exact revision and file verification. — a470a4d
+- [x] 2.2 Test old snapshot after correction, missing file and backup/restore. — a470a4d
 
 ### Phase 3: Optional archive classes and review
 
-- [ ] 3.1 Pin action revisions and identity batch only when their tables exist.
+- [x] 3.1 Pin action revisions and identity batch only when their tables exist. — a470a4d
 - [ ] 3.2 Run full build, isolated PostgreSQL and Compose smoke; review and fix findings.

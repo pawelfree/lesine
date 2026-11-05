@@ -12,3 +12,7 @@ Remaining: creator, reader, optional adapters, tests and review.
 Decision: strict evidence verifies local first import; research assumptions stay explicitly marked and cannot backdate corrections.
 Verification: PostgreSQL integration test covers corrections, concurrent import, incomplete scope, backup/restore and adapters.
 Remaining: final build, review and PR handoff.
+
+2026-11-05 — Commit records implementation steps 1.1–3.1 after a470a4d.
+Verification: full build and isolated Compose smoke passed; both migration orders preserve action generation.
+Remaining: final technical review and PR completion.
