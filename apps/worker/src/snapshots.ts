@@ -214,11 +214,15 @@ function selectActions(rows: Action[], asOf: Date, policy: AvailabilityPolicy): 
   return { selected, missing };
 }
 
-async function identityBatch(client: PoolClient): Promise<string | null> {
+async function identityBatch(client: PoolClient, asOf: Date, policy: AvailabilityPolicy): Promise<string | null> {
   if (!await exists(client, 'identity_head')) return null;
-  const result = await client.query<{ batch_id: string } & FileRef>(
-    `SELECT h.batch_id, b.relative_path, b.sha256 FROM identity_head h
-     JOIN identity_batches b ON b.id = h.batch_id WHERE h.singleton = true`);
+  const result = policy === 'strict_first_seen_v1'
+    ? await client.query<{ batch_id: string; imported_at: Date } & FileRef>(
+      `SELECT b.id AS batch_id, b.relative_path, b.sha256, b.imported_at FROM identity_batches b
+       WHERE b.imported_at <= $1 ORDER BY b.imported_at DESC, b.id DESC LIMIT 1`, [asOf])
+    : await client.query<{ batch_id: string; imported_at: Date } & FileRef>(
+      `SELECT h.batch_id, b.relative_path, b.sha256, b.imported_at FROM identity_head h
+       JOIN identity_batches b ON b.id = h.batch_id WHERE h.singleton = true`);
   const batch = result.rows[0];
   if (!batch) return null;
   await verifyFiles([batch]);
@@ -244,7 +248,7 @@ export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Pr
       input.from_date, input.to_date, generation);
     const coverage = await coverageForScope(client, checked.ids, checked.classes,
       input.from_date, input.to_date, generation);
-    const batchId = await identityBatch(client);
+    const batchId = await identityBatch(client, checked.asOf, checked.policy);
     const pickedBars = selectBars(bars, checked.asOf, checked.policy);
     const pickedActions = selectActions(actions, checked.asOf, checked.policy);
     const missing = [...pickedBars.missing, ...pickedActions.missing];
@@ -262,7 +266,8 @@ export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Pr
     if (selected.length > MAX_ROWS) throw new SnapshotError('snapshot_scope_too_large');
     await verifyFiles([...selected, ...usedManifests.values()]);
     const evidence: SnapshotEvidence = missing.length ? 'incomplete'
-      : coverageAssumed || selected.some((row) => row.availability_evidence === 'research_assumption') ? 'assumed' : 'verified';
+      : checked.policy === 'research_assumed_v1' || coverageAssumed ||
+        selected.some((row) => row.availability_evidence === 'research_assumption') ? 'assumed' : 'verified';
     const fingerprint = createHash('sha256').update(JSON.stringify({
       as_of_utc: checked.asOf.toISOString(), from_date: input.from_date, to_date: input.to_date,
       source_symbol_ids: checked.ids, data_classes: checked.classes, availability_policy: checked.policy,
@@ -310,8 +315,9 @@ export async function readSnapshot(pool: Pool, input: ReadSnapshotInput): Promis
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const meta = await client.query<{ id: string; availability_policy: AvailabilityPolicy;
       evidence: SnapshotEvidence; archive_generation: string; identity_batch_id: string | null;
-      data_classes: SnapshotClass[]; source_symbol_ids: string[]; from_date: string; to_date: string; missing: Missing[] }>(
-      `SELECT id, availability_policy, evidence, archive_generation::text, identity_batch_id,
+      data_classes: SnapshotClass[]; source_symbol_ids: string[]; from_date: string; to_date: string;
+      as_of_utc: Date; missing: Missing[] }>(
+      `SELECT id, availability_policy, evidence, archive_generation::text, identity_batch_id, as_of_utc,
         data_classes, source_symbol_ids, to_char(from_date, 'YYYY-MM-DD') AS from_date,
         to_char(to_date, 'YYYY-MM-DD') AS to_date, missing
        FROM data_snapshots WHERE id = $1`, [input.snapshot_id]);
@@ -361,9 +367,10 @@ export async function readSnapshot(pool: Pool, input: ReadSnapshotInput): Promis
     if (input.instrument_id) {
       if (!snapshot.identity_batch_id || !await exists(client, 'identity_links')) throw new SnapshotError('identity_unresolved');
       const links = await client.query<{ source_symbol_id: string; instrument_id: string;
-        valid_from: string; valid_to_exclusive: string | null }>(
+        valid_from: string; valid_to_exclusive: string | null; evidence_observed_at: string }>(
         `SELECT source_symbol_id, instrument_id, to_char(valid_from, 'YYYY-MM-DD') AS valid_from,
-           to_char(valid_to_exclusive, 'YYYY-MM-DD') AS valid_to_exclusive
+           to_char(valid_to_exclusive, 'YYYY-MM-DD') AS valid_to_exclusive,
+           to_char(evidence_observed_at, 'YYYY-MM-DD') AS evidence_observed_at
          FROM identity_links WHERE batch_id = $1 AND source_symbol_id = ANY($2::text[])
            AND valid_from <= $4 AND (valid_to_exclusive IS NULL OR valid_to_exclusive > $3)`,
         [snapshot.identity_batch_id, snapshot.source_symbol_ids, from, to]);
@@ -379,6 +386,9 @@ export async function readSnapshot(pool: Pool, input: ReadSnapshotInput): Promis
           link.valid_from <= (onDate as string) &&
           (link.valid_to_exclusive === null || link.valid_to_exclusive > (onDate as string)));
         if (matches.length !== 1) throw new SnapshotError('identity_unresolved', { source_symbol_id: row.source_symbol_id, date: onDate });
+        if (snapshot.availability_policy === 'strict_first_seen_v1' &&
+          matches[0].evidence_observed_at >= snapshot.as_of_utc.toISOString().slice(0, 10))
+          throw new SnapshotError('identity_unresolved', { source_symbol_id: row.source_symbol_id, date: onDate });
         if (matches[0].instrument_id === input.instrument_id) matching.push(row);
       }
       rows = matching;

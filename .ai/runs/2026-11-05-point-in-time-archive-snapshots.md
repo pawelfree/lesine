@@ -26,3 +26,8 @@ Remaining: re-review current code and publish PR evidence.
 Decision: migrations 008 and 009 add the same constraints when they follow 010.
 Verification: all three migrations, triggers and keys pass in both orders; snapshot and import regressions pass.
 Remaining: final review, PR metadata and handoff.
+
+2026-11-05 — Commit prevents future identity-map evidence from entering strict historical aggregation.
+Decision: strict snapshots select the latest batch imported by cutoff and reject same-day date-only identity proof.
+Verification: PostgreSQL tests cover later batch correction and same-day evidence; the assumed policy remains labeled.
+Remaining: final code review and PR publication.

@@ -117,21 +117,54 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       assert.equal((await verifyArchive(pool)).files, 2);
       assert.equal(((await readSnapshot(pool, { snapshot_id: saved.snapshot_id, data_class: 'daily_bars' })).rows[0] as { revision_id: string }).revision_id, original.id);
       process.env.LESINE_RESPONSE_DIR = responses;
-      await pool.query(`CREATE TABLE identity_batches(id uuid PRIMARY KEY, relative_path text NOT NULL, sha256 text NOT NULL)`);
+      await pool.query(`CREATE TABLE identity_batches(id uuid PRIMARY KEY, relative_path text NOT NULL,
+        sha256 text NOT NULL, imported_at timestamptz NOT NULL DEFAULT now())`);
       await pool.query(`CREATE TABLE identity_head(singleton boolean PRIMARY KEY, batch_id uuid NOT NULL)`);
       await pool.query(`CREATE TABLE identity_links(batch_id uuid NOT NULL, source_symbol_id text NOT NULL,
-        instrument_id uuid NOT NULL, valid_from date NOT NULL, valid_to_exclusive date)`);
+        instrument_id uuid NOT NULL, valid_from date NOT NULL, valid_to_exclusive date,
+        evidence_observed_at date NOT NULL)`);
       const instrument = randomUUID();
       const identityBatch = randomUUID();
       const identityBytes = Buffer.from('{"schema_version":1,"links":[]}');
       const identitySha = createHash('sha256').update(identityBytes).digest('hex');
       await mkdir(join(responses, 'identity'));
       await writeFile(join(responses, 'identity', `${identitySha}.json`), identityBytes);
-      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256) VALUES ($1, $2, $3)`,
-        [identityBatch, `identity/${identitySha}.json`, identitySha]);
+      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256, imported_at)
+        VALUES ($1, $2, $3, $4)`,
+        [identityBatch, `identity/${identitySha}.json`, identitySha, earlier]);
       await pool.query(`INSERT INTO identity_head(singleton, batch_id) VALUES (true, $1)`, [identityBatch]);
-      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id, valid_from)
-        VALUES ($1, $2, $3, '2020-01-01')`, [identityBatch, symbol, instrument]);
+      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id,
+        valid_from, evidence_observed_at)
+        VALUES ($1, $2, $3, '2020-01-01', '2024-01-01')`, [identityBatch, symbol, instrument]);
+      const knownIdentity = await createSnapshot(pool, { ...request, data_classes: ['daily_bars'] });
+      assert.equal(knownIdentity.identity_batch_id, identityBatch);
+      const correctedIdentity = randomUUID();
+      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256)
+        VALUES ($1, $2, $3)`, [correctedIdentity, `identity/${identitySha}.json`, identitySha]);
+      await pool.query('UPDATE identity_head SET batch_id = $1', [correctedIdentity]);
+      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id,
+        valid_from, evidence_observed_at)
+        VALUES ($1, $2, $3, '2020-01-01', '2024-01-01')`, [correctedIdentity, symbol, instrument]);
+      const beforeIdentity = await createSnapshot(pool, { ...request, data_classes: ['daily_bars'] });
+      assert.equal(beforeIdentity.identity_batch_id, identityBatch,
+        'strict historical cutoff keeps the batch known before a later correction');
+      const afterIdentity = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
+        data_classes: ['daily_bars'] });
+      assert.equal(afterIdentity.identity_batch_id, correctedIdentity);
+      assert.equal((await readSnapshot(pool, { snapshot_id: afterIdentity.snapshot_id,
+        data_class: 'daily_bars', instrument_id: instrument })).rows.length, 1);
+      const sameDayIdentity = randomUUID();
+      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256)
+        VALUES ($1, $2, $3)`, [sameDayIdentity, `identity/${identitySha}.json`, identitySha]);
+      await pool.query('UPDATE identity_head SET batch_id = $1', [sameDayIdentity]);
+      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id,
+        valid_from, evidence_observed_at)
+        VALUES ($1, $2, $3, '2020-01-01', CURRENT_DATE)`, [sameDayIdentity, symbol, instrument]);
+      const sameDaySnapshot = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
+        data_classes: ['daily_bars'] });
+      await assert.rejects(() => readSnapshot(pool, { snapshot_id: sameDaySnapshot.snapshot_id,
+        data_class: 'daily_bars', instrument_id: instrument }),
+      (error: unknown) => (error as SnapshotError).code === 'identity_unresolved');
       await pool.query(`ALTER TABLE raw_file_manifests DROP CONSTRAINT raw_file_manifests_data_class_check`);
       await pool.query(`ALTER TABLE raw_file_manifests ADD CONSTRAINT raw_file_manifests_data_class_check
         CHECK (data_class IN ('daily_bars', 'dividends', 'splits'))`);
@@ -166,7 +199,7 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
         data_classes: ['dividends'] }), (error: unknown) => (error as SnapshotError).code === 'unknown_availability');
       const actionSnapshot = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
         data_classes: ['dividends'], availability_policy: 'research_assumed_v1' });
-      assert.equal(actionSnapshot.identity_batch_id, identityBatch);
+      assert.equal(actionSnapshot.identity_batch_id, sameDayIdentity);
       assert.equal(actionSnapshot.evidence, 'assumed');
       const actionRead = await readSnapshot(pool, { snapshot_id: actionSnapshot.snapshot_id,
         data_class: 'dividends', instrument_id: instrument });
