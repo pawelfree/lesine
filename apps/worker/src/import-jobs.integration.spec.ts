@@ -2,16 +2,39 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { Pool } from 'pg';
 import { claimJob, commitChunk, processImport } from './import-jobs.js';
 import { exportBundle, verifyArchive, verifyBundle } from './archive-files.js';
 
+async function isolatedImportPool(): Promise<{ pool: Pool; close: () => Promise<void> }> {
+  const name = `lesine_import_${randomUUID().replaceAll('-', '')}`;
+  const admin = new Pool();
+  await admin.query(`CREATE DATABASE ${name}`);
+  const pool = new Pool({ database: name });
+  try {
+    for (const migration of ['001_source_inventory', '002_source_depth_sample',
+      '003_import_jobs', '004_immutable_eod_archive']) {
+      await pool.query(await readFile(resolve('db/migrations', `${migration}.sql`), 'utf8'));
+    }
+  } catch (error) {
+    await pool.end();
+    await admin.query(`DROP DATABASE ${name}`);
+    await admin.end();
+    throw error;
+  }
+  return { pool, close: async () => {
+    await pool.end();
+    await admin.query(`DROP DATABASE ${name}`);
+    await admin.end();
+  } };
+}
+
 test('import checkpoints survive restart and stale leases cannot publish',
   { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
     if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
-    const pool = new Pool();
+    const { pool, close } = await isolatedImportPool();
     const symbol = `TEST${randomUUID().slice(0, 8).toUpperCase()}`;
     const symbolId = randomUUID();
     const jobId = randomUUID();
@@ -220,7 +243,84 @@ test('import checkpoints survive restart and stale leases cannot publish',
       await pool.query('DELETE FROM import_jobs WHERE id = $1', [jobId]);
       await pool.query('DELETE FROM source_symbols WHERE id = $1', [symbolId]);
       await pool.query("DELETE FROM source_daily_budget WHERE provider = 'eodhd' AND utc_day = (now() AT TIME ZONE 'UTC')::date");
-      await pool.end();
+      await close();
+      await rm(directory, { recursive: true, force: true });
+      for (const [key, value] of [['EODHD_API_TOKEN', previous.token], ['LESINE_EODHD_DAILY_BUDGET', previous.budget], ['LESINE_RESPONSE_DIR', previous.responseDir]] as const) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+    }
+  });
+
+test('year-sized EOD request reserves each attempt and publishes one immutable archive chunk',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await isolatedImportPool();
+    const directory = await mkdtemp(join(tmpdir(), 'lesine-year-import-'));
+    const previous = { token: process.env.EODHD_API_TOKEN, budget: process.env.LESINE_EODHD_DAILY_BUDGET,
+      responseDir: process.env.LESINE_RESPONSE_DIR };
+    const symbolId = randomUUID();
+    const jobId = randomUUID();
+    const chunkId = randomUUID();
+    process.env.EODHD_API_TOKEN = 'fixture-token';
+    process.env.LESINE_EODHD_DAILY_BUDGET = '3';
+    process.env.LESINE_RESPONSE_DIR = directory;
+    try {
+      await pool.query("DELETE FROM source_daily_budget WHERE provider = 'eodhd' AND utc_day = (now() AT TIME ZONE 'UTC')::date");
+      await pool.query(
+        `INSERT INTO source_symbols(id, provider, provider_symbol, listing_state, market_segment,
+         identity_evidence_ref, first_seen_at, last_seen_at)
+         VALUES ($1, 'eodhd', $2, 'active', 'main', 'fixture', now(), now())`,
+        [symbolId, `TEST${symbolId.slice(0, 8).toUpperCase()}`],
+      );
+      await pool.query(
+        `INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date, scope_hash, mode)
+         VALUES ($1, 'eodhd', 'main', ARRAY['daily_bars'], '2025-01-01', '2026-01-01', $2, 'incremental')`,
+        [jobId, randomUUID()],
+      );
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date)
+        VALUES ($1, $2, $3, '2025-01-01', '2026-01-01')`, [chunkId, jobId, symbolId]);
+      let requests = 0;
+      const payload = JSON.stringify([
+        { date: '2025-01-02', open: 1, high: 3, low: 1, close: 2, adjusted_close: 2, volume: 100 },
+        { date: '2025-12-31', open: 2, high: 4, low: 2, close: 3, adjusted_close: 3, volume: 200 },
+      ]);
+      const fetcher: typeof fetch = async (input) => {
+        requests += 1;
+        const url = new URL(String(input));
+        assert.equal(url.searchParams.get('from'), '2025-01-01');
+        assert.equal(url.searchParams.get('to'), '2026-01-01');
+        return requests === 1
+          ? new Response('rate limited', { status: 429, headers: { 'Retry-After': '60' } })
+          : new Response(payload, { status: 200 });
+      };
+      await processImport(pool, fetcher);
+      assert.equal(requests, 1);
+      assert.equal((await pool.query('SELECT status FROM import_jobs WHERE id = $1', [jobId])).rows[0].status, 'quota_wait');
+      await pool.query("UPDATE import_jobs SET retry_after_utc = now() - interval '1 second' WHERE id = $1", [jobId]);
+      await processImport(pool, fetcher);
+      assert.equal(requests, 2);
+      const budget = await pool.query(
+        "SELECT reserved_calls FROM source_daily_budget WHERE provider = 'eodhd' AND utc_day = (now() AT TIME ZONE 'UTC')::date");
+      assert.equal(budget.rows[0].reserved_calls, 2, 'one reservation for each provider attempt');
+      const chunk = await pool.query('SELECT attempts, status, response_hash, file_id, manifest_id FROM import_chunks WHERE id = $1', [chunkId]);
+      assert.equal(chunk.rows[0].attempts, 2);
+      assert.equal(chunk.rows[0].status, 'done');
+      assert.equal((await readFile(join(directory, chunk.rows[0].file_id as string), 'utf8')), payload);
+      assert.equal(chunk.rows[0].response_hash, createHash('sha256').update(payload).digest('hex'));
+      const manifest = await pool.query('SELECT sha256, row_count FROM raw_file_manifests WHERE id = $1', [chunk.rows[0].manifest_id]);
+      assert.equal(manifest.rows[0].sha256, chunk.rows[0].response_hash);
+      assert.equal(manifest.rows[0].row_count, 2);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM daily_bar_revisions WHERE source_symbol_id = $1',
+        [symbolId])).rows[0].count, 2);
+      await processImport(pool, async () => { throw new Error('completed import must not be retried'); });
+      assert.equal((await pool.query('SELECT status FROM import_jobs WHERE id = $1', [jobId])).rows[0].status, 'done');
+    } finally {
+      await pool.query('TRUNCATE raw_file_manifest_revisions, daily_bar_revisions, raw_file_manifests CASCADE');
+      await pool.query('DELETE FROM import_chunks WHERE job_id = $1', [jobId]);
+      await pool.query('DELETE FROM import_jobs WHERE id = $1', [jobId]);
+      await pool.query('DELETE FROM source_symbols WHERE id = $1', [symbolId]);
+      await pool.query("DELETE FROM source_daily_budget WHERE provider = 'eodhd' AND utc_day = (now() AT TIME ZONE 'UTC')::date");
+      await close();
       await rm(directory, { recursive: true, force: true });
       for (const [key, value] of [['EODHD_API_TOKEN', previous.token], ['LESINE_EODHD_DAILY_BUDGET', previous.budget], ['LESINE_RESPONSE_DIR', previous.responseDir]] as const) {
         if (value === undefined) delete process.env[key]; else process.env[key] = value;

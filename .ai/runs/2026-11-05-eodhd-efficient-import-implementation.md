@@ -20,3 +20,8 @@ Remaining: worker request/budget verification, README, full gates and review.
 Decision: the new batch bound is explicit in SQL; PostgreSQL behavior will be checked in the isolated integration gate.
 Verification: plan references committed implementation 5b5603a and the journal remains append-only.
 Remaining: verify worker behavior and run end-to-end gates.
+
+2026-11-05 — Add year-sized fake-provider integration coverage and isolate importer tests in disposable PostgreSQL databases.
+Decision: the production worker needs no change; existing reservation, lease and manifest logic accepts the longer chunk.
+Verification: both importer integration cases and all nine worker tests passed in the dedicated Compose environment.
+Remaining: README, full build/API gates, smoke test, cleanup and review.
