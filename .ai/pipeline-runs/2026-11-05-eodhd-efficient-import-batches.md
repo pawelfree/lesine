@@ -36,7 +36,7 @@ Longer chunks widen the work repeated after a failed in-flight request; each ret
 
 ### Phase 2: Import verification
 
-- [ ] 2.1 Verify one-year request, budget and archive/recovery invariants.
+- [x] 2.1 Verify one-year request, budget and archive/recovery invariants. — e7f676e
 
 ### Phase 3: Documentation and gates
 

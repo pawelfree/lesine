@@ -25,3 +25,8 @@ Remaining: verify worker behavior and run end-to-end gates.
 Decision: the production worker needs no change; existing reservation, lease and manifest logic accepts the longer chunk.
 Verification: both importer integration cases and all nine worker tests passed in the dedicated Compose environment.
 Remaining: README, full build/API gates, smoke test, cleanup and review.
+
+2026-11-05 — Mark the worker verification phase complete in the resumable plan.
+Decision: keep production worker behavior unchanged after the fake-provider test confirmed two attempts consume two reservations.
+Verification: Phase 2 references commit e7f676e; the task journal contains a matching append-only entry.
+Remaining: complete documentation, broad checks and PR review.
