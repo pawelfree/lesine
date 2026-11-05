@@ -2,7 +2,7 @@
 
 Goals: Implement issue #5 from the accepted EOD coverage specification in a separate PR; verify API and UI behavior without consuming provider quota.
 Specification: [2026-11-05-eod-coverage-gaps.md](../specs/2026-11-05-eod-coverage-gaps.md)
-Status: in-progress
+Status: done
 
 2026-11-05 — Added the phased implementation plan for the EOD coverage API and `/data` view.
 Decision: implement the EOD-only report first, then the UI; use local fixtures and an isolated environment to avoid EODHD calls and disturbing the owner's running stack.
@@ -27,3 +27,7 @@ Remaining: authoritative PR review and final handoff.
 2026-11-05 — Added an integration assertion that old cursors fail after report regeneration.
 Decision: cover generation binding explicitly, following the review of the API pagination contract.
 Verification: focused PostgreSQL integration test passed in a disposable container. Remaining: complete the review and PR handoff.
+
+2026-11-05 — Completed the implementation plan and recorded PR #23 for handoff.
+Decision: retain `needs-qa`; GitHub does not let the PR author submit an approving review, so the clean self-review is a review comment.
+Verification: full build, focused database test, Angular tests and browser evidence passed. Remaining: external QA/review and merge outside this implementation task.

@@ -1,6 +1,6 @@
 # Implement EOD coverage and gap view
 
-Status: in-progress
+Status: complete
 Source doc: .ai/specs/2026-11-05-eod-coverage-gaps.md
 Issue: #5
 Spec PR: #22
@@ -30,6 +30,8 @@ Add a source-free, timestamped coverage API and report storage, then add the `/d
 The report must not infer trading days or full source depth from completed requests. Fingerprinting report inputs and report generation must not fetch EODHD or disturb the running user environment. A migration requires the documented coordinated backup before production rollout.
 
 ## Progress
+
+PR: #23
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
