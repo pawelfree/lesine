@@ -36,7 +36,7 @@ The catalog view and new EOD job planning change semantics. Keep the legacy list
 
 ### Phase 1: Durable catalog
 
-- [ ] 1.1 Add migration 005 with jobs, members, current pointer and legacy backfill.
+- [x] 1.1 Add migration 005 with jobs, members, current pointer and legacy backfill. — b7652f2
 - [ ] 1.2 Implement catalog-only worker retrieval, staging, lease, quota and atomic publication; keep CLI probe behavior.
 - [ ] 1.3 Add protected API job routes, current-list query and EOD import planning update.
 

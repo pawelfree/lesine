@@ -11,3 +11,7 @@ Remaining: migration, worker, API, UI, tests, verification and review.
 2026-11-05 — Add migration 005 for refresh jobs, published membership, current pointer and legacy EODHD backfill; extend migration tests.
 Decision: preserve all pre-existing source identities and identify the prior visible list as legacy, without a false publication timestamp.
 Verification: API TypeScript build passed; database integration will run in the isolated Compose environment. Remaining: worker, API, UI and runtime verification.
+
+2026-11-05 — Mark schema step 1.1 complete in the execution plan after commit b7652f2.
+Decision: retain database integration execution as a phase gate in isolated Compose.
+Remaining: implement worker, API, UI and end-to-end checks.
