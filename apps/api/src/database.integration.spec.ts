@@ -22,18 +22,21 @@ test('forward-only migrations initialize an empty database and do not rerun afte
           await database.onApplicationBootstrap();
           const versions = await database.pool.query('SELECT version FROM schema_migrations ORDER BY version');
           assert.deepEqual(versions.rows.map((row) => row.version),
-            ['001_source_inventory', '002_source_depth_sample', '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh', '006_eod_coverage', '007_remove_expected_coverage']);
+            ['001_source_inventory', '002_source_depth_sample', '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh', '006_eod_coverage', '007_remove_expected_coverage', '008_corporate_actions']);
           const removed = await database.pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'eod_coverage_reports' AND column_name = 'expected_scope_status'");
           assert.equal(removed.rowCount, 0);
-          const tables = await database.pool.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.source_depth_samples') AS samples, to_regclass('public.catalog_refresh_jobs') AS catalog_jobs");
+          const tables = await database.pool.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.source_depth_samples') AS samples, to_regclass('public.catalog_refresh_jobs') AS catalog_jobs, to_regclass('public.corporate_action_revisions') AS actions");
           assert.equal(tables.rows[0].symbols, 'source_symbols');
           assert.equal(tables.rows[0].samples, 'source_depth_samples');
           assert.equal(tables.rows[0].catalog_jobs, 'catalog_refresh_jobs');
+          assert.equal(tables.rows[0].actions, 'corporate_action_revisions');
         } finally { await database.onModuleDestroy(); }
       }
       // Roll back this additive migration in the disposable database and preserve older tables.
       const rollback = new Pool();
       try {
+        await rollback.query('DROP TABLE action_manifest_revisions');
+        await rollback.query('DROP TABLE corporate_action_revisions');
         await rollback.query('DROP TABLE catalog_head');
         await rollback.query('DROP TABLE catalog_refresh_members');
         await rollback.query('DROP TABLE catalog_refresh_jobs');
