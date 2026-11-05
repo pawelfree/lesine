@@ -222,3 +222,29 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       await rm(root, { recursive: true, force: true });
     }
   });
+
+test('snapshot migration binds existing action and identity tables',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const name = `lesine_snapshot_fks_${randomUUID().replaceAll('-', '')}`;
+    const admin = new Pool();
+    await admin.query(`CREATE DATABASE ${name}`);
+    const pool = new Pool({ database: name });
+    try {
+      const migrations = (await readdir(resolve('db/migrations'))).filter((file) => /^\d{3}_.*\.sql$/.test(file)).sort();
+      for (const file of migrations.filter((item) => item < '010_'))
+        await pool.query(await readFile(resolve('db/migrations', file), 'utf8'));
+      await pool.query(`CREATE TABLE corporate_action_revisions(id uuid PRIMARY KEY);
+        CREATE TABLE identity_batches(id uuid PRIMARY KEY)`);
+      await pool.query(await readFile(resolve('db/migrations/010_archive_snapshots.sql'), 'utf8'));
+      const constraints = await pool.query<{ constraint_name: string }>(
+        `SELECT constraint_name FROM information_schema.table_constraints
+         WHERE constraint_name IN ('snapshot_action_revision_fk', 'data_snapshots_identity_batch_fk')`);
+      assert.deepEqual(constraints.rows.map((row) => row.constraint_name).sort(),
+        ['data_snapshots_identity_batch_fk', 'snapshot_action_revision_fk']);
+    } finally {
+      await pool.end();
+      await admin.query(`DROP DATABASE ${name}`);
+      await admin.end();
+    }
+  });

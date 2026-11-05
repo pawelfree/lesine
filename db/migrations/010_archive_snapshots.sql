@@ -73,9 +73,9 @@ CREATE TABLE snapshot_scope_manifests (
   PRIMARY KEY (snapshot_id, manifest_id)
 );
 
--- The action and identity tables are delivered independently. Their UUIDs are validated
--- transactionally by the snapshot service when those tables exist. A later dependency
--- migration can add foreign keys without changing the immutable snapshot contract.
+-- The action and identity tables are delivered independently. Their migrations add
+-- the foreign keys when they run after this migration; this migration adds them
+-- when those capabilities are already present.
 CREATE TABLE snapshot_action_revisions (
   snapshot_id uuid NOT NULL REFERENCES data_snapshots(id),
   source_symbol_id text NOT NULL REFERENCES source_symbols(id),
@@ -87,6 +87,17 @@ CREATE TABLE snapshot_action_revisions (
   PRIMARY KEY (snapshot_id, data_class, source_symbol_id, event_key)
 );
 CREATE INDEX snapshot_actions_by_revision ON snapshot_action_revisions(action_revision_id);
+
+DO $$ BEGIN
+  IF to_regclass('public.corporate_action_revisions') IS NOT NULL THEN
+    ALTER TABLE snapshot_action_revisions ADD CONSTRAINT snapshot_action_revision_fk
+      FOREIGN KEY (action_revision_id) REFERENCES corporate_action_revisions(id);
+  END IF;
+  IF to_regclass('public.identity_batches') IS NOT NULL THEN
+    ALTER TABLE data_snapshots ADD CONSTRAINT data_snapshots_identity_batch_fk
+      FOREIGN KEY (identity_batch_id) REFERENCES identity_batches(id);
+  END IF;
+END $$;
 
 CREATE TRIGGER snapshot_immutable BEFORE UPDATE OR DELETE ON data_snapshots
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();

@@ -21,3 +21,8 @@ Remaining: final technical review and PR completion.
 Decision: archive generation advances for manifest-only imports as well as EOD and action revisions.
 Pitfall: test fixtures needed the chunk-to-manifest pointer used by real imports; concurrent PG queries were serialized.
 Remaining: re-review current code and publish PR evidence.
+
+2026-11-05 — Commit adds action and identity foreign keys when those tables preceded migration 010.
+Decision: migrations 008 and 009 add the same constraints when they follow 010.
+Verification: all three migrations, triggers and keys pass in both orders; snapshot and import regressions pass.
+Remaining: final review, PR metadata and handoff.
