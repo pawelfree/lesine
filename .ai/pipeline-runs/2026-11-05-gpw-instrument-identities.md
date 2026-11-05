@@ -37,3 +37,7 @@ PR: #28
 
 - [x] 3.1 Expose current dated links and paginated unresolved identities. — fc8b8f7
 - [x] 3.2 Run build, meaningful PostgreSQL tests, and isolated Compose smoke test; review and fix findings. — 9cf4d2c
+
+### Phase 4: Snapshot migration order
+
+- [x] 4.1 Bind snapshot identity batches regardless of migration order and re-review. — 62ea5a5
