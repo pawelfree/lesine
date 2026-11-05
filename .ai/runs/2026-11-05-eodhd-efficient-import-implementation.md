@@ -1,7 +1,7 @@
 # EODHD quota-efficient import implementation — issue #15
 
 Goals: Implement the accepted one-year EOD batching design, verify quota/archive/restart behavior, and publish a ready implementation PR.
-Spec: [Quota-efficient EODHD import batches](../specs/2026-11-05-eodhd-efficient-import-batches.md)
+Spec: [Quota-efficient EODHD import batches](../specs/implemented/2026-11-05-eodhd-efficient-import-batches.md)
 Status: done
 
 ## Commit log

@@ -1,7 +1,7 @@
 # EODHD catalog refresh UI specification
 
 Goals: Specify issue #18's catalog download, visible current ticker list and confirmed refresh; publish a reviewable design PR.
-Specification: [2026-11-05-eodhd-catalog-ui-refresh.md](../specs/2026-11-05-eodhd-catalog-ui-refresh.md)
+Specification: [2026-11-05-eodhd-catalog-ui-refresh.md](../specs/implemented/2026-11-05-eodhd-catalog-ui-refresh.md)
 Status: done
 
 2026-11-05 — Drafted the catalog-only worker, atomic current-list publication, API and `/data` flow; reviewed scope with a fresh-context agent.

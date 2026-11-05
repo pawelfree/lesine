@@ -1,7 +1,7 @@
 # EODHD catalog refresh from Data UI
 
 Status: complete
-Source doc: .ai/specs/2026-11-05-eodhd-catalog-ui-refresh.md
+Source doc: .ai/specs/implemented/2026-11-05-eodhd-catalog-ui-refresh.md
 Issue: #18
 Spec PR: #19
 
