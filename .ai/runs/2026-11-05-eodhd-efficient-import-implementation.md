@@ -30,3 +30,8 @@ Remaining: README, full build/API gates, smoke test, cleanup and review.
 Decision: keep production worker behavior unchanged after the fake-provider test confirmed two attempts consume two reservations.
 Verification: Phase 2 references commit e7f676e; the task journal contains a matching append-only entry.
 Remaining: complete documentation, broad checks and PR review.
+
+2026-11-05 — Correct README batching guidance and isolate the planner's manifest fixture in a disposable database.
+Decision: real EODHD coverage remains unverified; the import tests use fake-provider payloads, and the API route/schema stay unchanged.
+Verification: API 6/6 and worker 9/9 integration/unit tests passed in PR Compose; health and Data page returned 200; exact build passed in Node 24 Docker.
+Remaining: final diff review, plan completion, PR evidence and review. PR Compose containers, volumes, network and images were removed and verified absent.
