@@ -2,7 +2,7 @@
 
 Goals: Implement quota-aware EODHD dividend and split import with immutable source-backed revisions, retaining existing EOD behavior.
 Specification: [2026-11-05-gpw-corporate-actions.md](../specs/2026-11-05-gpw-corporate-actions.md) (design PR #26)
-Status: in-progress
+Status: done
 
 2026-11-05 — Add the phased implementation plan and open an isolated implementation PR.
 Decision: use the existing importer, local budget and raw-file manifest boundary; track action kind per chunk.
@@ -74,3 +74,8 @@ Remaining: independent review and QA gate before merge.
 2026-11-05 — Commit adds the snapshot-to-action foreign key when migration 010 was installed before 008.
 Decision: migration 010 adds the same key when 008 was installed first.
 Remaining: test both orders, review and restore the completed status.
+
+2026-11-05 — Commit records completed cross-order action FK verification and final re-review.
+Verification: both migration orders created the FK; action integration and workspace builds passed.
+Decision: implementation is done, while independent risk-high review and QA still gate merge.
+Remaining: independent reviewer and QA handoff.

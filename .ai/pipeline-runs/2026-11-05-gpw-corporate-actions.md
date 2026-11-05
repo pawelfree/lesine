@@ -48,3 +48,4 @@ PR: #27
 ### Phase 3: Snapshot migration order
 
 - [x] 3.1 Share the archive-generation counter when snapshot migration 010 ran first; test both orders. — a31e8b9
+- [x] 3.2 Bind snapshot action revisions regardless of migration order and re-review. — 65f5555
