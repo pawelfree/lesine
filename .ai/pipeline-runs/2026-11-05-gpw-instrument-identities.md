@@ -1,6 +1,6 @@
 # GPW instrument identities
 
-Status: in-progress
+Status: complete
 Source doc: .ai/specs/2026-11-05-gpw-instrument-identities.md
 Goal: Publish owner-attested, dated instrument links from a validated local evidence file while preserving prior batches.
 
@@ -19,6 +19,8 @@ Goal: Publish owner-attested, dated instrument links from a validated local evid
 
 ## Progress
 
+PR: #28
+
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Immutable identity model and validation
@@ -34,4 +36,4 @@ Goal: Publish owner-attested, dated instrument links from a validated local evid
 ### Phase 3: Read-only access and verification
 
 - [x] 3.1 Expose current dated links and paginated unresolved identities. — fc8b8f7
-- [ ] 3.2 Run build, meaningful PostgreSQL tests, and isolated Compose smoke test; review and fix findings.
+- [x] 3.2 Run build, meaningful PostgreSQL tests, and isolated Compose smoke test; review and fix findings. — 9cf4d2c

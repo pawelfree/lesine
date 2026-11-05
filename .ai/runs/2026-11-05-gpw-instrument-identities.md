@@ -2,7 +2,7 @@
 
 Goals: Implement the dated, owner-attested identity map and open a reviewed implementation PR.
 Specification: [2026-11-05-gpw-instrument-identities.md](../specs/2026-11-05-gpw-instrument-identities.md)
-Status: in-progress
+Status: done
 
 2026-11-05 — Commit adds the resumable implementation plan before runtime changes.
 Decision: use a separate worktree and PR for this capability; the spec remains in design PR #26.
@@ -20,3 +20,8 @@ Remaining: code review, findings if any, and PR completion.
 2026-11-05 — Commit rejects duplicate JSON keys and ambiguous overlapping uses of the same provider symbol.
 Decision: compatibility notes now name the new CLI, API and private evidence mount.
 Remaining: finish PR review and publish final verification evidence.
+
+2026-11-05 — Final commit marks plan complete after build, PostgreSQL tests, Compose smoke and technical review.
+Correction: duplicate-key and symbol-collision checks were in fc8b8f7; 9cf4d2c added compatibility notes.
+Decision: GitHub rejected native author approval; PR #28 needs independent review and QA before merge.
+Remaining: reviewer and QA gates outside this implementation task.
