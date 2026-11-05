@@ -27,7 +27,7 @@ type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_
       <section class="status" aria-label="Pobieranie katalogu">
         <h2>Katalog instrumentów</h2>
         @if (catalog(); as currentCatalog) {
-          <p>W lokalnym katalogu: <strong>{{ currentCatalog.data.count }}</strong> tickerów.</p>
+          <p>W lokalnym katalogu: <strong>{{ currentCatalog.data.count }}</strong> {{ tickerWord(currentCatalog.data.count, 'ticker') }}.</p>
           <button #refreshTrigger type="button" (click)="startCatalogRefresh()" [disabled]="catalogBusy() || catalogJob()?.status === 'queued' || catalogJob()?.status === 'running' || catalogJob()?.status === 'quota_wait'">
             {{ currentCatalog.data.count ? 'Pobierz katalog ponownie' : 'Pobierz katalog spółek' }}
           </button>
@@ -46,7 +46,7 @@ type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_
       </section>
       <dialog #confirmDialog (cancel)="cancelCatalogRefresh()" aria-labelledby="catalog-confirm-title">
         <h2 id="catalog-confirm-title">Pobrać katalog ponownie?</h2>
-        <p>Widoczna lista {{ catalog()?.data?.count }} tickerów zostanie zastąpiona po pobraniu obu części katalogu. Zapisane dane historyczne pozostaną dostępne.</p>
+        <p>Widoczna lista {{ catalog()?.data?.count }} {{ tickerWord(catalog()?.data?.count ?? 0, 'tickera') }} zostanie zastąpiona po pobraniu obu części katalogu. Zapisane dane historyczne pozostaną dostępne.</p>
         <button type="button" (click)="cancelCatalogRefresh()">Anuluj</button>
         <button type="button" (click)="confirmCatalogRefresh()">Potwierdź pobranie</button>
       </dialog>
@@ -159,6 +159,11 @@ export class DataPage implements OnDestroy {
   ngOnDestroy(): void { if (this.catalogTimer) clearInterval(this.catalogTimer); }
 
   retryReady(utc: string | null): boolean { return !utc || Date.parse(utc) <= Date.now(); }
+
+  tickerWord(count: number, singular: 'ticker' | 'tickera'): string {
+    if (count === 1) return singular;
+    return count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14) ? 'tickery' : 'tickerów';
+  }
 
   async refreshCatalogJob(): Promise<void> {
     try {

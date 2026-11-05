@@ -39,3 +39,7 @@ Remaining: full-stack smoke, independent review and PR readiness.
 2026-11-05 — Extend backup references to staged catalog parts, isolate the existing API planner test and clarify legacy UI/docs.
 Decision: backup verification must retain a validated part even before probe recording or publication; no shared QA database assumptions.
 Verification: full API suite (8) and focused worker archive/catalog suites (3) passed in Compose; browser confirmed cancel and failure preservation. Remaining: final gate, PR review and cleanup.
+
+2026-11-05 — Polish the confirmation dialog after inspecting the live browser screenshot.
+Decision: use the existing page palette and grammatically correct ticker counts in Polish.
+Verification: Angular build and all 6 UI tests passed. Remaining: publish screenshot evidence, final review and cleanup.
