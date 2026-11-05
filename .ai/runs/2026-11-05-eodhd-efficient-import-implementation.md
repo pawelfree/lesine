@@ -2,7 +2,7 @@
 
 Goals: Implement the accepted one-year EOD batching design, verify quota/archive/restart behavior, and publish a ready implementation PR.
 Spec: [Quota-efficient EODHD import batches](../specs/2026-11-05-eodhd-efficient-import-batches.md)
-Status: in-progress
+Status: done
 
 ## Commit log
 
@@ -35,3 +35,8 @@ Remaining: complete documentation, broad checks and PR review.
 Decision: real EODHD coverage remains unverified; the import tests use fake-provider payloads, and the API route/schema stay unchanged.
 Verification: API 6/6 and worker 9/9 integration/unit tests passed in PR Compose; health and Data page returned 200; exact build passed in Node 24 Docker.
 Remaining: final diff review, plan completion, PR evidence and review. PR Compose containers, volumes, network and images were removed and verified absent.
+
+2026-11-05 — Complete the tracked plan after passing the Node 24 build, isolated integration tests and code review for PR #17.
+Decision: keep `needs-qa` for the high-risk import path; no live EODHD coverage is claimed without account access.
+Verification: review https://github.com/pawelfree/lesine/pull/17#issuecomment-6652760359; temporary Docker resources were removed and verified absent.
+Remaining: human QA and merge of the ready PR; no implementation work remains in this task.

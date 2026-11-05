@@ -28,6 +28,8 @@ Longer chunks widen the work repeated after a failed in-flight request; each ret
 
 ## Progress
 
+PR: #17
+
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Planner
@@ -40,4 +42,4 @@ Longer chunks widen the work repeated after a failed in-flight request; each ret
 
 ### Phase 3: Documentation and gates
 
-- [ ] 3.1 Update README and complete validation and review.
+- [x] 3.1 Update README and complete validation and review. — ec4b206
