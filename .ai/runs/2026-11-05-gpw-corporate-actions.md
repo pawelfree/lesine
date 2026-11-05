@@ -38,3 +38,8 @@ Remaining: documentation, full build/smoke gate and PR review.
 Decision: retain tombstones and earlier values; the reader selects by local knowledge cutoff.
 Verification: action correction, withdrawal, immutability and reader tests passed.
 Remaining: documentation, full build/smoke gate and PR review.
+
+2026-11-05 — Document action import, quota impact and migration compatibility.
+Decision: the EOD Data-page status remains EOD-only; action display belongs to issue #7.
+Verification: Node 24 Compose build/health and relevant PostgreSQL integration suites pass; test infrastructure removed.
+Remaining: update progress, run authoritative PR review and fix any findings.
