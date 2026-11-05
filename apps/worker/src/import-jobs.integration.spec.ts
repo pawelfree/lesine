@@ -15,7 +15,8 @@ async function isolatedImportPool(): Promise<{ pool: Pool; close: () => Promise<
   const pool = new Pool({ database: name });
   try {
     for (const migration of ['001_source_inventory', '002_source_depth_sample',
-      '003_import_jobs', '004_immutable_eod_archive']) {
+      '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh',
+      '006_eod_coverage', '007_remove_expected_coverage', '008_corporate_actions']) {
       await pool.query(await readFile(resolve('db/migrations', `${migration}.sql`), 'utf8'));
     }
   } catch (error) {
@@ -248,6 +249,114 @@ test('import checkpoints survive restart and stale leases cannot publish',
       for (const [key, value] of [['EODHD_API_TOKEN', previous.token], ['LESINE_EODHD_DAILY_BUDGET', previous.budget], ['LESINE_RESPONSE_DIR', previous.responseDir]] as const) {
         if (value === undefined) delete process.env[key]; else process.env[key] = value;
       }
+    }
+  });
+
+test('action import retains corrections and withdrawals with immutable source manifests',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await isolatedImportPool();
+    const directory = await mkdtemp(join(tmpdir(), 'lesine-actions-'));
+    const previous = { token: process.env.EODHD_API_TOKEN, budget: process.env.LESINE_EODHD_DAILY_BUDGET,
+      responseDir: process.env.LESINE_RESPONSE_DIR };
+    process.env.EODHD_API_TOKEN = 'fixture-token';
+    process.env.LESINE_EODHD_DAILY_BUDGET = '20';
+    process.env.LESINE_RESPONSE_DIR = directory;
+    const sourceId = randomUUID();
+    try {
+      await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
+        market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
+        VALUES ($1, 'eodhd', 'ACTION', 'active', 'unclassified', 'fixture', now(), now())`, [sourceId]);
+      const request = async (response: unknown): Promise<void> => {
+        const jobId = randomUUID();
+        await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+          to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['dividends'],
+          '2026-01-01', '2026-12-31', $2, 'backfill')`, [jobId, randomUUID()]);
+        await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+          VALUES ($1, $2, $3, 'dividends', '2026-01-01', '2026-12-31')`,
+        [randomUUID(), jobId, sourceId]);
+        let calls = 0;
+        await processImport(pool, async (input) => {
+          calls += 1;
+          const url = new URL(String(input));
+          assert.equal(url.pathname, '/api/div/ACTION.WAR');
+          assert.equal(url.searchParams.get('fmt'), 'json');
+          return new Response(JSON.stringify(response), { status: 200 });
+        });
+        assert.equal(calls, 1);
+        await processImport(pool, async () => { throw new Error('completed chunk refetched'); });
+        assert.equal((await pool.query('SELECT status FROM import_jobs WHERE id = $1', [jobId])).rows[0].status, 'done');
+      };
+      await request([{ date: '2026-05-01', value: 0.5, unadjustedValue: 2, currency: 'PLN' }]);
+      await request([{ date: '2026-05-01', value: 0.5, unadjustedValue: 2, currency: 'PLN' }]);
+      await request([{ date: '2026-05-01', value: 0.75, unadjustedValue: 3, currency: 'PLN' }]);
+      await request([]);
+      const splitJob = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['splits'],
+        '2026-01-01', '2026-12-31', $2, 'backfill')`, [splitJob, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+        VALUES ($1, $2, $3, 'splits', '2026-01-01', '2026-12-31')`,
+      [randomUUID(), splitJob, sourceId]);
+      await processImport(pool, async (input) => {
+        assert.equal(new URL(String(input)).pathname, '/api/splits/ACTION.WAR');
+        return new Response(JSON.stringify([{ date: '2026-08-01', split: '3.000000/2.000000' }]),
+          { status: 200 });
+      });
+      await processImport(pool, async () => { throw new Error('completed split refetched'); });
+      const split = await pool.query(`SELECT split_numerator, split_denominator
+        FROM corporate_action_revisions WHERE source_symbol_id = $1 AND data_class = 'splits'`, [sourceId]);
+      assert.equal(split.rows[0].split_numerator, '3');
+      assert.equal(split.rows[0].split_denominator, '2');
+      const revisions = await pool.query(`SELECT id, state, amount, adjusted_amount, first_manifest_id
+        FROM corporate_action_revisions WHERE source_symbol_id = $1 AND data_class = 'dividends'
+        ORDER BY first_seen_at, id`, [sourceId]);
+      assert.equal(revisions.rowCount, 3);
+      assert.deepEqual(revisions.rows.map((row) => row.state), ['active', 'active', 'withdrawn']);
+      assert.deepEqual(revisions.rows.map((row) => row.amount === null ? null : Number(row.amount)), [2, 3, null]);
+      assert.equal((await pool.query(`SELECT count(*)::int AS n FROM action_manifest_revisions`)).rows[0].n, 5);
+      assert.equal((await pool.query(`SELECT count(*)::int AS n FROM raw_file_manifests
+        WHERE data_class = 'dividends'`)).rows[0].n, 4);
+      await assert.rejects(() => pool.query(`UPDATE corporate_action_revisions SET amount = 9
+        WHERE id = $1`, [revisions.rows[0].id]), /archive records are append-only/);
+      assert.equal((await verifyArchive(pool)).legacyChunks, 0);
+      const bundle = join(directory, 'bundle');
+      await mkdir(bundle);
+      await writeFile(join(bundle, 'database.dump'), 'fixture-dump');
+      await exportBundle(pool, bundle);
+      await verifyBundle(bundle);
+      const missingJob = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['splits'],
+        '2025-01-01', '2025-12-31', $2, 'backfill')`, [missingJob, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+        VALUES ($1, $2, $3, 'splits', '2025-01-01', '2025-12-31')`,
+      [randomUUID(), missingJob, sourceId]);
+      await processImport(pool, async () => new Response('Symbol not found', { status: 404 }));
+      const failed = await pool.query('SELECT status, error_code FROM import_jobs WHERE id = $1', [missingJob]);
+      assert.deepEqual(failed.rows[0], { status: 'failed', error_code: 'source_unavailable' });
+      const oversizedJob = randomUUID();
+      const oversizedChunk = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['dividends'],
+        '2025-01-01', '2025-12-31', $2, 'backfill')`, [oversizedJob, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+        VALUES ($1, $2, $3, 'dividends', '2025-01-01', '2025-12-31')`,
+      [oversizedChunk, oversizedJob, sourceId]);
+      await processImport(pool, async () => new Response(' '.repeat(5_000_001), { status: 200 }));
+      const oversized = await pool.query('SELECT status, error_code FROM import_jobs WHERE id = $1', [oversizedJob]);
+      assert.deepEqual(oversized.rows[0], { status: 'failed', error_code: 'invalid_action_payload' });
+      assert.equal((await pool.query('SELECT manifest_id FROM import_chunks WHERE id = $1',
+        [oversizedChunk])).rows[0].manifest_id, null);
+      assert.equal(await processImport(pool, async () => { throw new Error('failed action refetched'); }), false);
+    } finally {
+      if (previous.token === undefined) delete process.env.EODHD_API_TOKEN; else process.env.EODHD_API_TOKEN = previous.token;
+      if (previous.budget === undefined) delete process.env.LESINE_EODHD_DAILY_BUDGET;
+      else process.env.LESINE_EODHD_DAILY_BUDGET = previous.budget;
+      if (previous.responseDir === undefined) delete process.env.LESINE_RESPONSE_DIR;
+      else process.env.LESINE_RESPONSE_DIR = previous.responseDir;
+      await close();
+      await rm(directory, { recursive: true, force: true });
     }
   });
 

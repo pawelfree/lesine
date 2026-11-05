@@ -63,7 +63,7 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       assert.equal(saved.evidence, 'verified');
       assert.equal(saved.evidence_scope, 'local_first_seen');
       await assert.rejects(() => createSnapshot(pool, { ...request, data_classes: ['dividends'] }),
-        (error: unknown) => (error as SnapshotError).code === 'unsupported_data_class');
+        (error: unknown) => (error as SnapshotError).code === 'unknown_availability');
       const firstRead = await readSnapshot(pool, { snapshot_id: saved.snapshot_id, data_class: 'daily_bars' });
       assert.deepEqual(firstRead.rows.map((row) => (row as { revision_id: string }).revision_id), [original.id]);
       assert.equal((firstRead.rows[0] as { close: string }).close, '10');
@@ -117,34 +117,31 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       assert.equal((await verifyArchive(pool)).files, 2);
       assert.equal(((await readSnapshot(pool, { snapshot_id: saved.snapshot_id, data_class: 'daily_bars' })).rows[0] as { revision_id: string }).revision_id, original.id);
       process.env.LESINE_RESPONSE_DIR = responses;
-      await pool.query(`CREATE TABLE identity_batches(id uuid PRIMARY KEY, relative_path text NOT NULL,
-        sha256 text NOT NULL, imported_at timestamptz NOT NULL DEFAULT now())`);
-      await pool.query(`CREATE TABLE identity_head(singleton boolean PRIMARY KEY, batch_id uuid NOT NULL)`);
-      await pool.query(`CREATE TABLE identity_links(batch_id uuid NOT NULL, source_symbol_id text NOT NULL,
-        instrument_id uuid NOT NULL, valid_from date NOT NULL, valid_to_exclusive date,
-        evidence_observed_at date NOT NULL)`);
       const instrument = randomUUID();
       const identityBatch = randomUUID();
       const identityBytes = Buffer.from('{"schema_version":1,"links":[]}');
       const identitySha = createHash('sha256').update(identityBytes).digest('hex');
       await mkdir(join(responses, 'identity'));
       await writeFile(join(responses, 'identity', `${identitySha}.json`), identityBytes);
-      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256, imported_at)
-        VALUES ($1, $2, $3, $4)`,
+      await pool.query('INSERT INTO instruments(id, stable_key) VALUES ($1, $2)', [instrument, 'issuer-snapshot']);
+      await pool.query(`INSERT INTO identity_batches(id, schema_version, relative_path, sha256, imported_at)
+        VALUES ($1, 1, $2, $3, $4)`,
         [identityBatch, `identity/${identitySha}.json`, identitySha, earlier]);
       await pool.query(`INSERT INTO identity_head(singleton, batch_id) VALUES (true, $1)`, [identityBatch]);
-      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id,
-        valid_from, evidence_observed_at)
-        VALUES ($1, $2, $3, '2020-01-01', '2024-01-01')`, [identityBatch, symbol, instrument]);
+      await pool.query(`INSERT INTO identity_links(id, batch_id, source_symbol_id, instrument_id,
+        valid_from, evidence_source, evidence_ref, evidence_observed_at)
+        VALUES ($1, $2, $3, $4, '2020-01-01', 'owner-document', 'fixture/1', '2024-01-01')`,
+      [randomUUID(), identityBatch, symbol, instrument]);
       const knownIdentity = await createSnapshot(pool, { ...request, data_classes: ['daily_bars'] });
       assert.equal(knownIdentity.identity_batch_id, identityBatch);
       const correctedIdentity = randomUUID();
-      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256)
-        VALUES ($1, $2, $3)`, [correctedIdentity, `identity/${identitySha}.json`, identitySha]);
+      await pool.query(`INSERT INTO identity_batches(id, schema_version, relative_path, sha256)
+        VALUES ($1, 1, $2, $3)`, [correctedIdentity, `identity/${identitySha}.json`, identitySha]);
       await pool.query('UPDATE identity_head SET batch_id = $1', [correctedIdentity]);
-      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id,
-        valid_from, evidence_observed_at)
-        VALUES ($1, $2, $3, '2020-01-01', '2024-01-01')`, [correctedIdentity, symbol, instrument]);
+      await pool.query(`INSERT INTO identity_links(id, batch_id, source_symbol_id, instrument_id,
+        valid_from, evidence_source, evidence_ref, evidence_observed_at)
+        VALUES ($1, $2, $3, $4, '2020-01-01', 'owner-document', 'fixture/2', '2024-01-01')`,
+      [randomUUID(), correctedIdentity, symbol, instrument]);
       const beforeIdentity = await createSnapshot(pool, { ...request, data_classes: ['daily_bars'] });
       assert.equal(beforeIdentity.identity_batch_id, identityBatch,
         'strict historical cutoff keeps the batch known before a later correction');
@@ -155,26 +152,18 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       assert.equal((await readSnapshot(pool, { snapshot_id: afterIdentity.snapshot_id,
         data_class: 'daily_bars', instrument_id: instrument })).rows.length, 1);
       const sameDayIdentity = randomUUID();
-      await pool.query(`INSERT INTO identity_batches(id, relative_path, sha256)
-        VALUES ($1, $2, $3)`, [sameDayIdentity, `identity/${identitySha}.json`, identitySha]);
+      await pool.query(`INSERT INTO identity_batches(id, schema_version, relative_path, sha256)
+        VALUES ($1, 1, $2, $3)`, [sameDayIdentity, `identity/${identitySha}.json`, identitySha]);
       await pool.query('UPDATE identity_head SET batch_id = $1', [sameDayIdentity]);
-      await pool.query(`INSERT INTO identity_links(batch_id, source_symbol_id, instrument_id,
-        valid_from, evidence_observed_at)
-        VALUES ($1, $2, $3, '2020-01-01', CURRENT_DATE)`, [sameDayIdentity, symbol, instrument]);
+      await pool.query(`INSERT INTO identity_links(id, batch_id, source_symbol_id, instrument_id,
+        valid_from, evidence_source, evidence_ref, evidence_observed_at)
+        VALUES ($1, $2, $3, $4, '2020-01-01', 'owner-document', 'fixture/3', CURRENT_DATE)`,
+      [randomUUID(), sameDayIdentity, symbol, instrument]);
       const sameDaySnapshot = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
         data_classes: ['daily_bars'] });
       await assert.rejects(() => readSnapshot(pool, { snapshot_id: sameDaySnapshot.snapshot_id,
         data_class: 'daily_bars', instrument_id: instrument }),
       (error: unknown) => (error as SnapshotError).code === 'identity_unresolved');
-      await pool.query(`ALTER TABLE raw_file_manifests DROP CONSTRAINT raw_file_manifests_data_class_check`);
-      await pool.query(`ALTER TABLE raw_file_manifests ADD CONSTRAINT raw_file_manifests_data_class_check
-        CHECK (data_class IN ('daily_bars', 'dividends', 'splits'))`);
-      await pool.query(`CREATE TABLE corporate_action_revisions(id uuid PRIMARY KEY, source_symbol_id text NOT NULL,
-        data_class text NOT NULL, ex_date date NOT NULL, event_key text NOT NULL, first_seen_at timestamptz NOT NULL,
-        first_manifest_id uuid NOT NULL, state text NOT NULL, ambiguous boolean NOT NULL DEFAULT false,
-        archive_generation bigint NOT NULL DEFAULT 1,
-        amount numeric, adjusted_amount numeric,
-        currency text, split_numerator numeric, split_denominator numeric)`);
       const actionBytes = Buffer.from('[{"date":"2025-11-04","value":1}]');
       const actionSha = createHash('sha256').update(actionBytes).digest('hex');
       await writeFile(join(responses, 'import', `${actionSha}.json`), actionBytes);
@@ -183,19 +172,20 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       const actionManifest = randomUUID();
       const actionRevision = randomUUID();
       await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date,
-        scope_hash, mode, status) VALUES ($1, 'eodhd', 'all', ARRAY['daily_bars'], $2, $2, $3, 'backfill', 'done')`,
+        scope_hash, mode, status) VALUES ($1, 'eodhd', 'all', ARRAY['dividends'], $2, $2, $3, 'backfill', 'done')`,
         [actionJob, session, randomUUID()]);
-      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status)
-        VALUES ($1, $2, $3, $4, $4, 'done')`, [actionChunk, actionJob, symbol, session]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status, data_class)
+        VALUES ($1, $2, $3, $4, $4, 'done', 'dividends')`, [actionChunk, actionJob, symbol, session]);
       await pool.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider,
         data_class, market_scope, min_date, max_date, row_count)
         VALUES ($1, $2, $3, $4, 'eodhd', 'dividends', 'all', $5, $5, 1)`,
         [actionManifest, actionChunk, `import/${actionSha}.json`, actionSha, session]);
       await pool.query('UPDATE import_chunks SET manifest_id = $2 WHERE id = $1', [actionChunk, actionManifest]);
-      await pool.query(`INSERT INTO corporate_action_revisions(id, source_symbol_id, data_class, ex_date,
-        event_key, first_seen_at, first_manifest_id, state, amount, adjusted_amount, currency)
-        VALUES ($1, $2, 'dividends', $3, $4, now(), $5, 'active', 1, 1, 'PLN')`,
-        [actionRevision, symbol, session, 'c'.repeat(64), actionManifest]);
+      await pool.query(`INSERT INTO corporate_action_revisions(id, provider, source_symbol_id, data_class, ex_date,
+        event_key, fingerprint, first_seen_at, first_manifest_id, state, amount, adjusted_amount, currency,
+        availability_evidence)
+        VALUES ($1, 'eodhd', $2, 'dividends', $3, $4, $5, now(), $6, 'active', 1, 1, 'PLN', 'first_import')`,
+        [actionRevision, symbol, session, 'c'.repeat(64), 'd'.repeat(64), actionManifest]);
       await assert.rejects(() => createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
         data_classes: ['dividends'] }), (error: unknown) => (error as SnapshotError).code === 'unknown_availability');
       const actionSnapshot = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
@@ -205,10 +195,12 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       const actionRead = await readSnapshot(pool, { snapshot_id: actionSnapshot.snapshot_id,
         data_class: 'dividends', instrument_id: instrument });
       assert.equal((actionRead.rows[0] as { revision_id: string }).revision_id, actionRevision);
-      await pool.query(`INSERT INTO corporate_action_revisions(id, source_symbol_id, data_class, ex_date,
-        event_key, first_seen_at, first_manifest_id, state, ambiguous, amount, adjusted_amount, currency)
-        VALUES ($1, $2, 'dividends', $3, $4, now(), $5, 'active', true, 1, 1, 'PLN')`,
-        [randomUUID(), symbol, session, 'c'.repeat(64), actionManifest]);
+      await pool.query(`INSERT INTO corporate_action_revisions(id, provider, source_symbol_id, data_class, ex_date,
+        event_key, fingerprint, first_seen_at, first_manifest_id, state, ambiguous, amount, adjusted_amount,
+        currency, availability_evidence)
+        VALUES ($1, 'eodhd', $2, 'dividends', $3, $4, $5, now(), $6, 'active', true, 1, 1,
+          'PLN', 'first_import')`,
+        [randomUUID(), symbol, session, 'c'.repeat(64), 'e'.repeat(64), actionManifest]);
       await assert.rejects(() => createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
         data_classes: ['dividends'], availability_policy: 'research_assumed_v1' }),
       (error: unknown) => (error as SnapshotError).code === 'unknown_availability');
@@ -219,10 +211,10 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       const emptyJob = randomUUID();
       const emptyChunk = randomUUID();
       await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date,
-        scope_hash, mode, status) VALUES ($1, 'eodhd', 'all', ARRAY['daily_bars'], $2, $2, $3, 'backfill', 'done')`,
+        scope_hash, mode, status) VALUES ($1, 'eodhd', 'all', ARRAY['dividends'], $2, $2, $3, 'backfill', 'done')`,
         [emptyJob, emptyDate, randomUUID()]);
-      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status)
-        VALUES ($1, $2, $3, $4, $4, 'done')`, [emptyChunk, emptyJob, symbol, emptyDate]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status, data_class)
+        VALUES ($1, $2, $3, $4, $4, 'done', 'dividends')`, [emptyChunk, emptyJob, symbol, emptyDate]);
       const emptyManifest = randomUUID();
       await pool.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider,
         data_class, market_scope, row_count)
@@ -268,8 +260,6 @@ test('snapshot migration binds existing action and identity tables',
       const migrations = (await readdir(resolve('db/migrations'))).filter((file) => /^\d{3}_.*\.sql$/.test(file)).sort();
       for (const file of migrations.filter((item) => item < '010_'))
         await pool.query(await readFile(resolve('db/migrations', file), 'utf8'));
-      await pool.query(`CREATE TABLE corporate_action_revisions(id uuid PRIMARY KEY);
-        CREATE TABLE identity_batches(id uuid PRIMARY KEY)`);
       await pool.query(await readFile(resolve('db/migrations/010_archive_snapshots.sql'), 'utf8'));
       const constraints = await pool.query<{ constraint_name: string }>(
         `SELECT constraint_name FROM information_schema.table_constraints

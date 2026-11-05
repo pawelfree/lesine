@@ -41,3 +41,8 @@ Remaining: complete review and publish PR evidence.
 Verification: isolated PostgreSQL integration, both migration orders, Compose smoke and all workspace builds passed.
 Decision: PR remains subject to independent risk-high review and manual QA before merge.
 Remaining: none for implementation; publish the review result and handoff.
+
+2026-11-05 — Merge commit incorporates action and identity PRs from main and resolves documentation conflicts.
+Decision: adapt integration fixtures to the real 008/009 schema and update the full migration test through 010; snapshot production logic remains unchanged.
+Verification: Node 24.15 build, 16 API and 21 worker tests, plus isolated Compose health, tables and foreign keys passed; test infrastructure was removed.
+Remaining: independent risk-high review and QA before merging PR #29.

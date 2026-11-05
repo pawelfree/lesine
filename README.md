@@ -4,7 +4,7 @@ Private, local platform for researching GPW market indicators and validating inv
 
 The accepted stack is Angular, NestJS, a separate TypeScript calculation/import worker, PostgreSQL and local Docker Compose. See the [technology decision](.ai/specs/research/decisions/2026-11-04-platform-technology.md).
 
-The local shell, source catalog, resumable EOD import and EOD coverage view are available. The Data page reports an empty or unavailable source honestly and keeps provider symbol identities separate. The import stores original responses and source-keyed, append-only EOD revisions; full market-history completeness, indicators and backtests remain separate backlog work. The worker now has an internal immutable snapshot contract for later research consumers. The [GPW history specification](.ai/specs/2026-11-04-local-gpw-history-with-coverage.md), [product brief](.ai/specs/product-brief.md) and [App Spec](.ai/specs/2026-11-04-app-spec-lesine.md) hold the product rules.
+The local shell, source catalog, resumable EOD import and EOD coverage view are available. The Data page reports an empty or unavailable source honestly and keeps provider symbol identities separate. The import stores original responses and source-keyed, append-only EOD revisions. Dividend and split import uses the same job machinery, and owner-attested identity links are available. The worker has an internal immutable snapshot contract for later research consumers. Full market-history completeness, indicators and backtests remain separate backlog work. The [GPW history specification](.ai/specs/2026-11-04-local-gpw-history-with-coverage.md), [product brief](.ai/specs/product-brief.md) and [App Spec](.ai/specs/2026-11-04-app-spec-lesine.md) hold the product rules.
 
 ## Run locally
 
@@ -32,6 +32,29 @@ The **Zakres notowań EOD** section on `/data` reads only local PostgreSQL evide
 The worker exports `createSnapshot` and `readSnapshot` from `apps/worker/src/snapshots.ts` for future indicator and validation modules. They do not call EODHD or expose a public mutation route. A snapshot pins exact committed revision IDs, source/date scope, UTC cutoff, a policy and a local archive generation. A strict cutoff pins the newest identity batch locally imported by then; the assumed policy pins the current batch. Identity links are returned as `owner_attested`, separate from verified local EOD availability. Strict instrument-level reads reject same-day or later date-only identity evidence. A later correction creates new revision candidates but does not rewrite an older snapshot. Reads verify the retained response files and fail with `snapshot_corrupt` if provenance is broken.
 
 `strict_first_seen_v1` requires the selected EOD revision and a completed import range to have been locally available by the cutoff. Its `verified` evidence class means **verified local availability only**, not proven public availability at GPW or EODHD. `research_assumed_v1` may use the earliest locally retained EOD revision after 18:00 UTC on the next weekday when its import happened later; this is labeled `assumed` and is not a verified historical backtest. Weekday is a conservative rule, not a GPW holiday calendar. No later correction is backdated into an earlier decision. Corporate actions are excluded from strict snapshots without exact publication evidence; the assumed policy can pin an unambiguous action already locally imported by the cutoff when the separate action tables exist. A requested class without installed source tables fails explicitly. A completed empty response is pinned as a checksummed manifest; an unrequested range is reported as unknown availability. The first implementation bounds a request to 500 identities, 367 inclusive dates and 50,000 examined revisions or manifests. Missing inputs fail by default; `allow_missing` records gaps and marks the snapshot `incomplete`.
+
+## Owner-attested instrument identities
+
+Historical source IDs remain separate until the owner supplies dated, documented links. Place a UTF-8 JSON map in the private `identity-input/` directory (or set `LESINE_IDENTITY_INPUT_HOST_DIR` to another private directory before starting Compose). Do not commit this file. Each source ID comes from `GET /api/catalog`; the stable instrument key is chosen by the owner and is not inferred from the ticker:
+
+```json
+{"schema_version":1,"links":[{"source_symbol_id":"<64-character source ID>","instrument_key":"issuer-001","valid_from":"2024-01-01","valid_to_exclusive":null,"evidence":{"source":"owner-document","ref":"document/page","observed_at":"2025-01-01"}}]}
+```
+
+Validate without writes, then publish the complete map:
+
+```sh
+docker compose exec worker node apps/worker/dist/identities-cli.js identities validate /data/identity-input/map.json
+docker compose exec worker node apps/worker/dist/identities-cli.js identities import /data/identity-input/map.json
+```
+
+The import rejects unknown source IDs, overlapping periods and unsafe input files. It retains a checksummed private copy and switches the active batch atomically. Repeating the active file is idempotent; importing a corrected or earlier file creates a new batch while older batches remain available. `GET /api/instruments/{id}/identities` and paginated `GET /api/identities/unresolved` expose the active owner-attested map without changing EOD observations. The evidence reference is an owner assertion, not independently verified provider data. The archive backup includes every retained identity file.
+
+## Import dividends and splits
+
+`POST /api/import-jobs` accepts one `data_classes` value per job: `daily_bars`, `dividends` or `splits`. The action classes use EODHD's per-symbol JSON endpoints. Submit explicit `from_date` and `to_date` values; the existing local-only session and CSRF rules apply. A job requests each missing source-symbol/date window once, including windows that previously returned an empty array; `mode: "backfill"` deliberately rechecks the requested window for corrections or withdrawals. Each dividend and split request costs one unit of the same `LESINE_EODHD_DAILY_BUDGET`. For roughly 1,000 source identities, importing both classes from an empty archive therefore needs roughly 2,000 calls; set the budget according to the account's actual allowance or let the worker pause and resume across days. The current `/data` import status and coverage report remain EOD-only; the action display is separate follow-up work.
+
+The archive stores a dividend's historical `unadjustedValue` separately from EODHD's `value`, which may have been restated for later splits. It stores a split's original ratio. An identical recheck reuses the retained revision; a changed or withdrawn event appends a new revision and keeps the old one. Same-day events without stable source IDs are flagged ambiguous. `first_seen_at` is the first **local** import time, not proof of publication on an earlier trading day. Do not treat these action records as verified point-in-time inputs until a snapshot policy can establish or label their historical availability.
 
 ## Back up and restore the archive
 

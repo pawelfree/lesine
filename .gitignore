@@ -4,6 +4,7 @@
 .DS_Store
 .env
 .data/
+identity-input/
 node_modules/
 **/node_modules/
 **/dist/
