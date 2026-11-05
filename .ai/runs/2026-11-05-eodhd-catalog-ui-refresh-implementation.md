@@ -27,3 +27,7 @@ Verification: isolated API database integration passed (3 tests) and TypeScript 
 2026-11-05 — Mark worker step 1.2 and API step 1.3 complete in the execution plan.
 Decision: phase 1 is ready for owner UI integration and full-stack verification.
 Remaining: UI commit, Docker/browser smoke, review and PR readiness.
+
+2026-11-05 — Add `/data` catalog action, confirmation, progress/retry and version-aware paging; update owner instructions.
+Decision: empty catalog queues directly; a nonempty list requires an explicit dialog and a matching server-side catalog id.
+Verification: Angular UI suite passed (6 tests). Remaining: full-stack smoke, review and PR readiness.
