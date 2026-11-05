@@ -22,7 +22,9 @@ test('forward-only migrations initialize an empty database and do not rerun afte
           await database.onApplicationBootstrap();
           const versions = await database.pool.query('SELECT version FROM schema_migrations ORDER BY version');
           assert.deepEqual(versions.rows.map((row) => row.version),
-            ['001_source_inventory', '002_source_depth_sample', '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh']);
+            ['001_source_inventory', '002_source_depth_sample', '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh', '006_eod_coverage', '007_remove_expected_coverage']);
+          const removed = await database.pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'eod_coverage_reports' AND column_name = 'expected_scope_status'");
+          assert.equal(removed.rowCount, 0);
           const tables = await database.pool.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.source_depth_samples') AS samples, to_regclass('public.catalog_refresh_jobs') AS catalog_jobs");
           assert.equal(tables.rows[0].symbols, 'source_symbols');
           assert.equal(tables.rows[0].samples, 'source_depth_samples');

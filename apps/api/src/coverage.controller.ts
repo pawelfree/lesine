@@ -17,7 +17,7 @@ function parseFilters(query: QueryValues): { filters: Filters; limit: number } {
   };
   if (!['all', 'main', 'newconnect', 'unclassified'].includes(filters.market) ||
       !['all', 'active', 'delisted', 'unknown'].includes(filters.listing) ||
-      !['all', 'complete', 'partial', 'unavailable', 'unclassified', 'unknown'].includes(filters.status) ||
+      !['all', 'unavailable', 'unclassified', 'unknown'].includes(filters.status) ||
       (query.data_class && query.data_class !== 'daily_bars') ||
       (query.source && query.source !== 'eodhd') ||
       (query.limit && !/^(?:[1-9]|[1-9][0-9]|1[0-9][0-9]|200)$/.test(query.limit))) throw invalid();
@@ -51,8 +51,8 @@ export class CoverageController {
       if (query.cursor) throw invalid();
       return { data: { report_id: null, created_at: null, archive_last_committed_at: null,
         refresh_status: 'none', refresh_error_code: null, catalog_id: null, archive_watermark: null,
-        expected_scope_status: 'unknown', scope: filters,
-        summary: { expected: null, provider_available: null, acquired: null, gaps: null }, rows: [] },
+        scope: filters,
+        summary: { provider_available: null, acquired: null, gaps: null }, rows: [] },
       page: { next_cursor: null } };
     }
     const last = decodeCursor(query.cursor, report.id, filters);
@@ -78,15 +78,15 @@ export class CoverageController {
        ORDER BY market_segment, listing, provider_symbol, source_symbol_id LIMIT $${values.length}`, values,
     );
     const visible = rows.rows.slice(0, limit).map((row) => ({ ...row,
-      expected_from: null, expected_to: null, provider_from: null, provider_to: null }));
+      provider_from: null, provider_to: null }));
     const tail = rows.rows.length > limit ? rows.rows[limit - 1] : null;
     const next = tail ? Buffer.from(JSON.stringify({ report: report.id, filters,
       last: [tail.market_segment, tail.listing, tail.provider_symbol, tail.source_symbol_id] })).toString('base64url') : null;
     return { data: { report_id: report.id, created_at: report.created_at.toISOString(),
       archive_last_committed_at: report.archive_last_committed_at?.toISOString() ?? null,
       refresh_status: refreshStatus, refresh_error_code: errorCode, catalog_id: report.catalog_id,
-      archive_watermark: report.input_revision, expected_scope_status: report.expected_scope_status,
-      scope: filters, summary: { expected: null, provider_available: null, acquired: summary.rows[0].acquired, gaps: null },
+      archive_watermark: report.input_revision,
+      scope: filters, summary: { provider_available: null, acquired: summary.rows[0].acquired, gaps: null },
       rows: visible }, page: { next_cursor: next } };
   }
 }

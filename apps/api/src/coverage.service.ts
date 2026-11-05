@@ -9,7 +9,6 @@ export type CoverageReport = {
   archive_last_committed_at: Date | null;
   catalog_id: string | null;
   input_revision: string;
-  expected_scope_status: 'unknown';
 };
 
 @Injectable()
@@ -18,7 +17,7 @@ export class CoverageService {
 
   private async latest(client: PoolClient): Promise<CoverageReport | null> {
     const result = await client.query<CoverageReport>(
-      'SELECT id, created_at, archive_last_committed_at, catalog_id, input_revision, expected_scope_status FROM eod_coverage_reports ORDER BY input_revision DESC LIMIT 1',
+      'SELECT id, created_at, archive_last_committed_at, catalog_id, input_revision FROM eod_coverage_reports ORDER BY input_revision DESC LIMIT 1',
     );
     return result.rows[0] ?? null;
   }
@@ -60,9 +59,7 @@ export class CoverageService {
            EXISTS (SELECT 1 FROM catalog_refresh_members m WHERE m.job_id = $2 AND m.source_symbol_id = s.id),
            bars.first_date, bars.last_date, bars.day_count,
            CASE WHEN s.market_segment = 'unclassified' THEN 'unclassified' ELSE 'unknown' END,
-           jsonb_build_array(jsonb_build_object('from_date', NULL, 'to_date', NULL,
-             'reason_code', 'expected_scope_unknown', 'evidence_ref', NULL,
-             'evidence_checked_at', NULL)) || COALESCE(requests.findings, '[]'::jsonb)
+           COALESCE(requests.findings, '[]'::jsonb)
              || COALESCE(intervals.findings, '[]'::jsonb)
          FROM source_symbols s
          CROSS JOIN LATERAL (

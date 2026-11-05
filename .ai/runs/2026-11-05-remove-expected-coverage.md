@@ -1,0 +1,10 @@
+# Remove expected coverage from Lesine
+
+Goals: Remove the expected market/catalog/session range concept from active requirements, API, UI, schema and tests; preserve acquired data and import behavior.
+Specification: [2026-11-05-remove-expected-coverage.md](../specs/2026-11-05-remove-expected-coverage.md)
+Status: in-progress
+
+2026-11-05 — Remove expectation-scope fields from active specs, API, UI and tests; add forward-only migration 007 without touching archived EOD bars.
+Decision: retain the unrelated optimistic-concurrency `expected_catalog_id` and old immutable report generations; a revision bump makes the new report current.
+Verification: Node 24 Docker build, npm tests, isolated Compose smoke and four PostgreSQL integration tests passed; temporary containers, volumes and images removed.
+Remaining: independent PR review and QA before merge, then deploy the migration after a coordinated backup.
