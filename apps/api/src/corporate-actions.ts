@@ -13,6 +13,9 @@ export type StoredAction = {
   split_numerator: string | null;
   split_denominator: string | null;
   split_raw: string | null;
+  declaration_date: string | null;
+  record_date: string | null;
+  payment_date: string | null;
   first_seen_at: Date;
   availability_evidence: string;
   source_file_sha256: string;
@@ -25,7 +28,10 @@ export async function readActionRevisions(pool: Pool, sourceSymbolId: string,
   const result = await pool.query<StoredAction>(`SELECT r.id, r.source_symbol_id, r.data_class,
     to_char(r.ex_date, 'YYYY-MM-DD') AS ex_date, r.state, r.ambiguous,
     r.amount, r.adjusted_amount, r.currency, r.split_numerator, r.split_denominator,
-    r.split_raw, r.first_seen_at, r.availability_evidence,
+    r.split_raw, to_char(r.declaration_date, 'YYYY-MM-DD') AS declaration_date,
+    to_char(r.record_date, 'YYYY-MM-DD') AS record_date,
+    to_char(r.payment_date, 'YYYY-MM-DD') AS payment_date,
+    r.first_seen_at, r.availability_evidence,
     m.sha256 AS source_file_sha256
     FROM (SELECT DISTINCT ON (event_key) * FROM corporate_action_revisions
       WHERE source_symbol_id = $1 AND data_class = $2

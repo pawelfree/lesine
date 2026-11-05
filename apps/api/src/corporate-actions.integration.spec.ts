@@ -42,9 +42,11 @@ test('action reader pins retained revisions before a local knowledge cutoff',
         [second, 3, '2026-06-02T00:00:00Z']] as const) {
         await pool.query(`INSERT INTO corporate_action_revisions(id, provider, source_symbol_id,
           data_class, ex_date, event_key, fingerprint, state, amount, adjusted_amount, currency,
+          declaration_date, record_date, payment_date,
           first_manifest_id, first_seen_at, availability_evidence)
           VALUES ($1, 'eodhd', $2, 'dividends', '2026-05-01', $3, $4,
-            'active', $5, $5, 'PLN', $6, $7, 'ex_date_only')`,
+            'active', $5, $5, 'PLN', '2026-04-01', '2026-04-30', '2026-05-15',
+            $6, $7, 'declaration_date_only')`,
         [id, sourceId, 'b'.repeat(64), id.replaceAll('-', '').padEnd(64, '0').slice(0, 64),
           amount, manifestId, knownAt]);
       }
@@ -55,6 +57,9 @@ test('action reader pins retained revisions before a local knowledge cutoff',
       assert.equal(before.length, 1);
       assert.equal(before[0].id, first);
       assert.equal(before[0].source_file_sha256, 'a'.repeat(64));
+      assert.equal(before[0].declaration_date, '2026-04-01');
+      assert.equal(before[0].record_date, '2026-04-30');
+      assert.equal(before[0].payment_date, '2026-05-15');
       const after = await readActionRevisions(pool, sourceId, 'dividends', '2026-01-01',
         '2026-12-31', new Date('2026-07-01T00:00:00Z'));
       assert.equal(after[0].id, second);

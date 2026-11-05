@@ -6,6 +6,31 @@ import { parseCorporateActions, type ActionClass, type ActionEvent } from './cor
 import { parseEodBars, type EodBar } from './eod-bars.js';
 
 const sha = (raw: string): string => createHash('sha256').update(raw).digest('hex');
+const MAX_RESPONSE_BYTES = 5_000_000;
+
+export async function readResponseLimited(response: Response,
+  errorCode: 'invalid_action_payload' | 'invalid_depth_payload'): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let raw = '';
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(errorCode);
+      }
+      raw += decoder.decode(chunk.value, { stream: true });
+    }
+    return raw + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
 export type JobStatus = 'queued' | 'running' | 'quota_wait' | 'paused' | 'failed' | 'done';
 export type JobRequest = { marketScope: 'main' | 'newconnect' | 'all'; fromDate: string; toDate: string; mode: 'backfill' | 'incremental' };
 
@@ -284,7 +309,8 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
       return true;
     }
     if (!response.ok) throw new Error('source_unavailable');
-    raw = await response.text();
+    raw = await readResponseLimited(response, item.data_class === 'daily_bars'
+      ? 'invalid_depth_payload' : 'invalid_action_payload');
     if (item.data_class === 'daily_bars') bars = parseEodBars(raw, item.from_date, item.to_date);
     else events = parseCorporateActions(raw, item.data_class, item.from_date, item.to_date);
   } catch (cause) {

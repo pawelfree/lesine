@@ -15,3 +15,5 @@ Migration 008 adds `dividends` and `splits` to the existing import-job and manif
 If snapshot migration 010 already exists when migration 008 runs, the action table also joins its archive-generation counter. When migration 008 runs first, migration 010 adds that column and trigger later. Either order preserves the action revisions already imported with baseline generation 1.
 
 The same two-way migration handshake adds the snapshot-to-action foreign key regardless of which migration is first. Existing action revisions remain append-only.
+
+The internal action reader returns retained declaration, record and payment dates alongside the existing revision evidence. Provider responses are stopped at 5 MB before buffering the full body; an oversized action response fails without publishing a manifest, while oversized EOD responses retain the prior `invalid_depth_payload` error code.

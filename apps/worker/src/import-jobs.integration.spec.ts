@@ -335,7 +335,20 @@ test('action import retains corrections and withdrawals with immutable source ma
       await processImport(pool, async () => new Response('Symbol not found', { status: 404 }));
       const failed = await pool.query('SELECT status, error_code FROM import_jobs WHERE id = $1', [missingJob]);
       assert.deepEqual(failed.rows[0], { status: 'failed', error_code: 'source_unavailable' });
-      assert.equal(await processImport(pool, async () => { throw new Error('404 retried'); }), false);
+      const oversizedJob = randomUUID();
+      const oversizedChunk = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['dividends'],
+        '2025-01-01', '2025-12-31', $2, 'backfill')`, [oversizedJob, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+        VALUES ($1, $2, $3, 'dividends', '2025-01-01', '2025-12-31')`,
+      [oversizedChunk, oversizedJob, sourceId]);
+      await processImport(pool, async () => new Response(' '.repeat(5_000_001), { status: 200 }));
+      const oversized = await pool.query('SELECT status, error_code FROM import_jobs WHERE id = $1', [oversizedJob]);
+      assert.deepEqual(oversized.rows[0], { status: 'failed', error_code: 'invalid_action_payload' });
+      assert.equal((await pool.query('SELECT manifest_id FROM import_chunks WHERE id = $1',
+        [oversizedChunk])).rows[0].manifest_id, null);
+      assert.equal(await processImport(pool, async () => { throw new Error('failed action refetched'); }), false);
     } finally {
       if (previous.token === undefined) delete process.env.EODHD_API_TOKEN; else process.env.EODHD_API_TOKEN = previous.token;
       if (previous.budget === undefined) delete process.env.LESINE_EODHD_DAILY_BUDGET;

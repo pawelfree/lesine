@@ -79,3 +79,8 @@ Remaining: test both orders, review and restore the completed status.
 Verification: both migration orders created the FK; action integration and workspace builds passed.
 Decision: implementation is done, while independent risk-high review and QA still gate merge.
 Remaining: independent reviewer and QA handoff.
+
+2026-11-05 — Fix full PR review findings: return retained action dates and cap provider-response bytes before buffering.
+Decision: oversized action requests fail without a manifest; EOD keeps its prior invalid-depth error code.
+Verification: Node 24 build, 16 isolated PostgreSQL/unit tests and Compose smoke passed; disposable infrastructure removed.
+Remaining: independent risk-high review and QA before merge.
