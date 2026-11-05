@@ -1,7 +1,7 @@
 # EOD coverage and gap view specification
 
 Goals: Specify issue #5's EOD coverage API and `/data` gap view; publish and review the design PR, correcting actionable findings.
-Specification: [2026-11-05-eod-coverage-gaps.md](../specs/2026-11-05-eod-coverage-gaps.md)
+Specification: [2026-11-05-eod-coverage-gaps.md](../specs/implemented/2026-11-05-eod-coverage-gaps.md)
 Status: done
 
 2026-11-05 — Drafted the EOD-only coverage report, API, UI states and phased implementation plan for issue #5.
