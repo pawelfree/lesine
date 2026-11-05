@@ -40,9 +40,10 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status)
         VALUES ($1, $2, $3, $4, $4, 'done')`, [chunk, job, symbol, session]);
       await pool.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider,
-        data_class, market_scope, min_date, max_date, row_count)
-        VALUES ($1, $2, $3, $4, 'eodhd', 'daily_bars', 'all', $5, $5, 1)`,
-      [manifest, chunk, `import/${sha}.json`, sha, session]);
+        data_class, market_scope, min_date, max_date, row_count, created_at)
+        VALUES ($1, $2, $3, $4, 'eodhd', 'daily_bars', 'all', $5, $5, 1, $6)`,
+      [manifest, chunk, `import/${sha}.json`, sha, session, available]);
+      await pool.query('UPDATE import_chunks SET manifest_id = $2 WHERE id = $1', [chunk, manifest]);
       await pool.query(`INSERT INTO daily_bar_revisions(id, provider, source_symbol_id, session_date,
         open, high, low, close, volume, fingerprint, first_manifest_id, available_at)
         VALUES ($1, 'eodhd', $2, $3, 1, 2, 1, $4, 100, $5, $6, $7)`,
@@ -156,6 +157,7 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
         data_class, market_scope, min_date, max_date, row_count)
         VALUES ($1, $2, $3, $4, 'eodhd', 'dividends', 'all', $5, $5, 1)`,
         [actionManifest, actionChunk, `import/${actionSha}.json`, actionSha, session]);
+      await pool.query('UPDATE import_chunks SET manifest_id = $2 WHERE id = $1', [actionChunk, actionManifest]);
       await pool.query(`INSERT INTO corporate_action_revisions(id, source_symbol_id, data_class, ex_date,
         event_key, first_seen_at, first_manifest_id, state, amount, adjusted_amount, currency)
         VALUES ($1, $2, 'dividends', $3, $4, now(), $5, 'active', 1, 1, 'PLN')`,
@@ -175,6 +177,33 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
         [randomUUID(), symbol, session, 'c'.repeat(64), actionManifest]);
       await assert.rejects(() => createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
         data_classes: ['dividends'], availability_policy: 'research_assumed_v1' }),
+      (error: unknown) => (error as SnapshotError).code === 'unknown_availability');
+      const emptyDate = '2025-11-05';
+      const emptyBytes = Buffer.from('[]');
+      const emptySha = createHash('sha256').update(emptyBytes).digest('hex');
+      await writeFile(join(responses, 'import', `${emptySha}.json`), emptyBytes);
+      const emptyJob = randomUUID();
+      const emptyChunk = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date,
+        scope_hash, mode, status) VALUES ($1, 'eodhd', 'all', ARRAY['daily_bars'], $2, $2, $3, 'backfill', 'done')`,
+        [emptyJob, emptyDate, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status)
+        VALUES ($1, $2, $3, $4, $4, 'done')`, [emptyChunk, emptyJob, symbol, emptyDate]);
+      const emptyManifest = randomUUID();
+      await pool.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256, provider,
+        data_class, market_scope, row_count)
+        VALUES ($1, $2, $3, $4, 'eodhd', 'dividends', 'all', 0)`,
+        [emptyManifest, emptyChunk, `import/${emptySha}.json`, emptySha]);
+      await pool.query('UPDATE import_chunks SET manifest_id = $2 WHERE id = $1', [emptyChunk, emptyManifest]);
+      const empty = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
+        from_date: emptyDate, to_date: emptyDate, data_classes: ['dividends'] });
+      assert.equal(empty.evidence, 'verified');
+      assert.equal((await readSnapshot(pool, { snapshot_id: empty.snapshot_id, data_class: 'dividends' })).rows.length, 0);
+      await rm(join(responses, 'import', `${emptySha}.json`));
+      await assert.rejects(() => readSnapshot(pool, { snapshot_id: empty.snapshot_id, data_class: 'dividends' }),
+        (error: unknown) => (error as SnapshotError).code === 'snapshot_corrupt');
+      await assert.rejects(() => createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
+        from_date: '2025-11-06', to_date: '2025-11-06', data_classes: ['dividends'] }),
       (error: unknown) => (error as SnapshotError).code === 'unknown_availability');
       await assert.rejects(() => readSnapshot(pool, { snapshot_id: saved.snapshot_id,
         data_class: 'daily_bars', instrument_id: instrument }),

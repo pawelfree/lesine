@@ -30,6 +30,8 @@ type Action = FileRef & { id: string; source_symbol_id: string; data_class: 'div
 type PickedBar = Bar & { availability_evidence: 'first_import' | 'research_assumption' };
 type PickedAction = Action & { availability_evidence: 'research_assumption' };
 type Missing = { source_symbol_id: string; data_class: SnapshotClass; reason: string; date?: string };
+type CoveredRange = FileRef & { manifest_id: string; source_symbol_id: string; data_class: SnapshotClass;
+  from_date: string; to_date: string; created_at: Date };
 const idPattern = /^[a-f0-9]{64}$/;
 const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -129,6 +131,47 @@ async function actionsForScope(client: PoolClient, ids: string[], classes: Snaps
   return result.rows;
 }
 
+async function coverageForScope(client: PoolClient, ids: string[], classes: SnapshotClass[], from: string,
+  to: string, generation: number): Promise<CoveredRange[]> {
+  const result = await client.query<CoveredRange>(
+    `SELECT m.id AS manifest_id, m.relative_path, m.sha256,
+      c.resource_key AS source_symbol_id, m.data_class,
+      to_char(c.from_date, 'YYYY-MM-DD') AS from_date,
+      to_char(c.to_date, 'YYYY-MM-DD') AS to_date, m.created_at
+     FROM import_chunks c JOIN raw_file_manifests m ON m.id = c.manifest_id
+     WHERE c.status = 'done' AND c.resource_key = ANY($1::text[])
+       AND m.data_class = ANY($2::text[]) AND c.to_date >= $3 AND c.from_date <= $4
+       AND m.archive_generation <= $5 LIMIT $6`,
+    [ids, classes, from, to, generation, MAX_ROWS + 1]);
+  if (result.rows.length > MAX_ROWS) throw new SnapshotError('snapshot_scope_too_large');
+  return result.rows;
+}
+
+function coverageEvidence(rows: CoveredRange[], id: string, dataClass: SnapshotClass,
+  from: string, to: string, asOf: Date, policy: AvailabilityPolicy): {
+    complete: boolean; assumed: boolean; used: CoveredRange[];
+  } {
+  const relevant = rows.filter((row) => row.source_symbol_id === id && row.data_class === dataClass &&
+    (policy === 'research_assumed_v1' || row.created_at <= asOf))
+    .sort((a, b) => a.from_date.localeCompare(b.from_date));
+  let cursor = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  let assumed = false;
+  const used: CoveredRange[] = [];
+  for (const range of relevant) {
+    const start = Date.parse(`${range.from_date}T00:00:00Z`);
+    const last = Date.parse(`${range.to_date}T00:00:00Z`);
+    if (start > cursor) break;
+    if (last >= cursor) {
+      cursor = last + 86_400_000;
+      if (range.created_at > asOf) assumed = true;
+      used.push(range);
+    }
+    if (cursor > end) return { complete: true, assumed, used };
+  }
+  return { complete: false, assumed, used };
+}
+
 function selectBars(rows: Bar[], asOf: Date, policy: AvailabilityPolicy): { selected: PickedBar[]; missing: Missing[] } {
   const groups = new Map<string, Bar[]>();
   for (const row of rows) {
@@ -195,31 +238,37 @@ export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Pr
     const generationResult = await client.query<{ generation: string }>(
       'SELECT generation::text FROM archive_generation_state WHERE singleton = true');
     const generation = Number(generationResult.rows[0].generation);
-    const [bars, actions, batchId] = await Promise.all([
-      checked.classes.includes('daily_bars') ? barsForScope(client, checked.ids, input.from_date, input.to_date, generation) : [],
-      actionsForScope(client, checked.ids, checked.classes, input.from_date, input.to_date, generation),
-      identityBatch(client),
-    ]);
+    const bars = checked.classes.includes('daily_bars')
+      ? await barsForScope(client, checked.ids, input.from_date, input.to_date, generation) : [];
+    const actions = await actionsForScope(client, checked.ids, checked.classes,
+      input.from_date, input.to_date, generation);
+    const coverage = await coverageForScope(client, checked.ids, checked.classes,
+      input.from_date, input.to_date, generation);
+    const batchId = await identityBatch(client);
     const pickedBars = selectBars(bars, checked.asOf, checked.policy);
     const pickedActions = selectActions(actions, checked.asOf, checked.policy);
     const missing = [...pickedBars.missing, ...pickedActions.missing];
+    let coverageAssumed = false;
+    const usedManifests = new Map<string, CoveredRange>();
     for (const id of checked.ids) for (const dataClass of checked.classes) {
-      if (dataClass === 'daily_bars' && !bars.some((row) => row.source_symbol_id === id))
-        missing.push({ source_symbol_id: id, data_class: dataClass, reason: 'no_committed_observation' });
-      if (dataClass !== 'daily_bars' && !actions.some((row) => row.source_symbol_id === id && row.data_class === dataClass))
-        missing.push({ source_symbol_id: id, data_class: dataClass, reason: 'no_committed_observation' });
+      const proof = coverageEvidence(coverage, id, dataClass, input.from_date, input.to_date,
+        checked.asOf, checked.policy);
+      if (!proof.complete) missing.push({ source_symbol_id: id, data_class: dataClass, reason: 'unarchived_request_range' });
+      if (proof.assumed) coverageAssumed = true;
+      for (const manifest of proof.used) usedManifests.set(manifest.manifest_id, manifest);
     }
     if (missing.length && !checked.allowMissing) throw new SnapshotError('unknown_availability', missing);
     const selected = [...pickedBars.selected, ...pickedActions.selected];
     if (selected.length > MAX_ROWS) throw new SnapshotError('snapshot_scope_too_large');
-    await verifyFiles(selected);
+    await verifyFiles([...selected, ...usedManifests.values()]);
     const evidence: SnapshotEvidence = missing.length ? 'incomplete'
-      : selected.some((row) => row.availability_evidence === 'research_assumption') ? 'assumed' : 'verified';
+      : coverageAssumed || selected.some((row) => row.availability_evidence === 'research_assumption') ? 'assumed' : 'verified';
     const fingerprint = createHash('sha256').update(JSON.stringify({
       as_of_utc: checked.asOf.toISOString(), from_date: input.from_date, to_date: input.to_date,
       source_symbol_ids: checked.ids, data_classes: checked.classes, availability_policy: checked.policy,
       identity_batch_id: batchId, bar_ids: pickedBars.selected.map((row) => row.id).sort(),
-      action_ids: pickedActions.selected.map((row) => row.id).sort(), missing,
+      action_ids: pickedActions.selected.map((row) => row.id).sort(),
+      manifest_ids: [...usedManifests.keys()].sort(), missing,
     })).digest('hex');
     const id = randomUUID();
     await client.query(`INSERT INTO data_snapshots(id, as_of_utc, source_symbol_ids, data_classes,
@@ -235,6 +284,8 @@ export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Pr
       `INSERT INTO snapshot_action_revisions(snapshot_id, source_symbol_id, data_class, ex_date,
         event_key, action_revision_id, availability_evidence) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [id, row.source_symbol_id, row.data_class, row.ex_date, row.event_key, row.id, row.availability_evidence]);
+    for (const manifestId of usedManifests.keys()) await client.query(
+      'INSERT INTO snapshot_scope_manifests(snapshot_id, manifest_id) VALUES ($1, $2)', [id, manifestId]);
     await client.query('COMMIT');
     return { snapshot_id: id, archive_generation: generation, identity_batch_id: batchId,
       evidence, evidence_scope: 'local_first_seen', fingerprint, missing };
@@ -332,7 +383,10 @@ export async function readSnapshot(pool: Pool, input: ReadSnapshotInput): Promis
       }
       rows = matching;
     }
-    await verifyFiles(rows);
+    const manifests = await client.query<FileRef>(
+      `SELECT m.relative_path, m.sha256 FROM snapshot_scope_manifests s
+       JOIN raw_file_manifests m ON m.id = s.manifest_id WHERE s.snapshot_id = $1`, [input.snapshot_id]);
+    await verifyFiles([...rows, ...manifests.rows]);
     await client.query('COMMIT');
     return { snapshot_id: snapshot.id, availability_policy: snapshot.availability_policy,
       evidence: snapshot.evidence, evidence_scope: 'local_first_seen',

@@ -16,3 +16,8 @@ Remaining: final build, review and PR handoff.
 2026-11-05 — Commit records implementation steps 1.1–3.1 after a470a4d.
 Verification: full build and isolated Compose smoke passed; both migration orders preserve action generation.
 Remaining: final technical review and PR completion.
+
+2026-11-05 — Commit pins completed import manifests, including empty responses, and detects unimported ranges.
+Decision: archive generation advances for manifest-only imports as well as EOD and action revisions.
+Pitfall: test fixtures needed the chunk-to-manifest pointer used by real imports; concurrent PG queries were serialized.
+Remaining: re-review current code and publish PR evidence.

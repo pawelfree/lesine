@@ -5,6 +5,16 @@ CREATE TABLE archive_generation_state (
 INSERT INTO archive_generation_state(singleton, generation) VALUES (true, 1);
 
 ALTER TABLE daily_bar_revisions ADD COLUMN archive_generation bigint NOT NULL DEFAULT 1;
+ALTER TABLE raw_file_manifests ADD COLUMN archive_generation bigint NOT NULL DEFAULT 1;
+
+CREATE FUNCTION assign_manifest_archive_generation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE archive_generation_state SET generation = generation + 1
+    WHERE singleton = true RETURNING generation INTO NEW.archive_generation;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER manifest_archive_generation BEFORE INSERT ON raw_file_manifests
+  FOR EACH ROW EXECUTE FUNCTION assign_manifest_archive_generation();
 
 CREATE FUNCTION assign_bar_archive_generation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -57,6 +67,12 @@ CREATE TABLE snapshot_bar_revisions (
 );
 CREATE INDEX snapshot_bars_by_revision ON snapshot_bar_revisions(revision_id);
 
+CREATE TABLE snapshot_scope_manifests (
+  snapshot_id uuid NOT NULL REFERENCES data_snapshots(id),
+  manifest_id uuid NOT NULL REFERENCES raw_file_manifests(id),
+  PRIMARY KEY (snapshot_id, manifest_id)
+);
+
 -- The action and identity tables are delivered independently. Their UUIDs are validated
 -- transactionally by the snapshot service when those tables exist. A later dependency
 -- migration can add foreign keys without changing the immutable snapshot contract.
@@ -75,6 +91,8 @@ CREATE INDEX snapshot_actions_by_revision ON snapshot_action_revisions(action_re
 CREATE TRIGGER snapshot_immutable BEFORE UPDATE OR DELETE ON data_snapshots
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
 CREATE TRIGGER snapshot_bar_immutable BEFORE UPDATE OR DELETE ON snapshot_bar_revisions
+  FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
+CREATE TRIGGER snapshot_manifest_immutable BEFORE UPDATE OR DELETE ON snapshot_scope_manifests
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
 CREATE TRIGGER snapshot_action_immutable BEFORE UPDATE OR DELETE ON snapshot_action_revisions
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
