@@ -2,7 +2,7 @@
 
 Goals: Implement quota-aware EODHD dividend and split import with immutable source-backed revisions, retaining existing EOD behavior.
 Specification: [2026-11-05-gpw-corporate-actions.md](../specs/2026-11-05-gpw-corporate-actions.md) (design PR #26)
-Status: done
+Status: in-progress
 
 2026-11-05 — Add the phased implementation plan and open an isolated implementation PR.
 Decision: use the existing importer, local budget and raw-file manifest boundary; track action kind per chunk.
@@ -58,3 +58,7 @@ Remaining: publish fix, re-review and finish PR handoff.
 Decision: GitHub rejects author approval; the favorable review is recorded as a comment for independent follow-up.
 Verification: Node 24 build and relevant PostgreSQL tests passed after the fix; no temporary infrastructure remains.
 Remaining: independent high-risk review and QA before merge.
+
+2026-11-05 — Commit adds archive-generation wiring for installations where snapshot migration 010 ran first.
+Decision: migration 010 supplies the same trigger when action migration 008 ran first.
+Remaining: cross-order migration test, build, re-review and PR update.

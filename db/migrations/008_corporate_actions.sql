@@ -56,3 +56,13 @@ CREATE TRIGGER action_revision_immutable BEFORE UPDATE OR DELETE ON corporate_ac
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
 CREATE TRIGGER action_manifest_revision_immutable BEFORE UPDATE OR DELETE ON action_manifest_revisions
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
+
+-- Snapshot migration 010 may have landed first. In that order, join its archive
+-- generation counter now; in the opposite order, migration 010 adds this trigger.
+DO $$ BEGIN
+  IF to_regclass('public.archive_generation_state') IS NOT NULL THEN
+    ALTER TABLE corporate_action_revisions ADD COLUMN archive_generation bigint NOT NULL DEFAULT 1;
+    CREATE TRIGGER action_archive_generation BEFORE INSERT ON corporate_action_revisions
+      FOR EACH ROW EXECUTE FUNCTION assign_action_archive_generation();
+  END IF;
+END $$;
