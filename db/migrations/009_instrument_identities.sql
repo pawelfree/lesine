@@ -40,3 +40,10 @@ CREATE TRIGGER identity_batches_immutable BEFORE UPDATE OR DELETE ON identity_ba
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
 CREATE TRIGGER identity_links_immutable BEFORE UPDATE OR DELETE ON identity_links
   FOR EACH ROW EXECUTE FUNCTION forbid_archive_row_change();
+
+DO $$ BEGIN
+  IF to_regclass('public.data_snapshots') IS NOT NULL THEN
+    ALTER TABLE data_snapshots ADD CONSTRAINT data_snapshots_identity_batch_fk
+      FOREIGN KEY (identity_batch_id) REFERENCES identity_batches(id);
+  END IF;
+END $$;

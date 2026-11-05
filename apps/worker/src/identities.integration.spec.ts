@@ -29,8 +29,14 @@ test('identity batches validate without writing, publish atomically and preserve
     const makeMap = (instrument_key: string) => ({ schema_version: 1, links: [{ source_symbol_id: symbol,
       instrument_key, valid_from: '2024-01-01', valid_to_exclusive: null, evidence }] });
     try {
-      for (const file of (await readdir(resolve('db/migrations'))).filter((item) => /^\d{3}_.*\.sql$/.test(item)).sort())
+      for (const file of (await readdir(resolve('db/migrations'))).filter((item) => /^\d{3}_.*\.sql$/.test(item)).sort()) {
+        if (file.startsWith('009_')) await pool.query('CREATE TABLE data_snapshots(identity_batch_id uuid)');
         await pool.query(await readFile(resolve('db/migrations', file), 'utf8'));
+      }
+      const hasForeignKey = await pool.query<{ exists: boolean }>(`SELECT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'data_snapshots'
+          AND constraint_name = 'data_snapshots_identity_batch_fk') AS exists`);
+      assert.equal(hasForeignKey.rows[0].exists, true);
       await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
         market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
         VALUES ($1, 'eodhd', 'TEST', 'active', 'unclassified', 'fixture', now(), now())`, [symbol]);

@@ -2,7 +2,7 @@
 
 Goals: Implement the dated, owner-attested identity map and open a reviewed implementation PR.
 Specification: [2026-11-05-gpw-instrument-identities.md](../specs/2026-11-05-gpw-instrument-identities.md)
-Status: done
+Status: in-progress
 
 2026-11-05 — Commit adds the resumable implementation plan before runtime changes.
 Decision: use a separate worktree and PR for this capability; the spec remains in design PR #26.
@@ -25,3 +25,7 @@ Remaining: finish PR review and publish final verification evidence.
 Correction: duplicate-key and symbol-collision checks were in fc8b8f7; 9cf4d2c added compatibility notes.
 Decision: GitHub rejected native author approval; PR #28 needs independent review and QA before merge.
 Remaining: reviewer and QA gates outside this implementation task.
+
+2026-11-05 — Commit adds the snapshot-to-identity-batch foreign key when migration 010 ran first.
+Decision: migration 010 adds the same constraint when 009 ran first.
+Remaining: cross-order test, re-review and final PR update.
