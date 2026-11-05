@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { Database } from './database.js';
 
 type DataClass = 'dividends' | 'splits';
-type ListQuery = { data_class?: unknown; source_symbol_id?: unknown; from_date?: unknown;
+type ListQuery = { data_class?: unknown; source_symbol_id?: unknown; provider_symbol?: unknown; from_date?: unknown;
   to_date?: unknown; cursor?: unknown };
 type ActionRow = { event_key: string; revision_id: string; source_symbol_id: string;
   provider_symbol: string; data_class: DataClass; ex_date: string; state: string;
@@ -76,17 +76,19 @@ export class CorporateActionsController {
   @Get()
   async list(@Query() query: ListQuery): Promise<{ data: { rows: Omit<ActionRow, 'relative_path'>[] };
     page: { next_cursor: string | null } }> {
-    if (Object.keys(query).some((key) => !['data_class', 'source_symbol_id', 'from_date', 'to_date', 'cursor'].includes(key)) ||
+    if (Object.keys(query).some((key) => !['data_class', 'source_symbol_id', 'provider_symbol', 'from_date', 'to_date', 'cursor'].includes(key)) ||
       (query.data_class !== undefined && query.data_class !== 'dividends' && query.data_class !== 'splits') ||
       (query.source_symbol_id !== undefined && (typeof query.source_symbol_id !== 'string' || !sourceId.test(query.source_symbol_id))) ||
+      (query.provider_symbol !== undefined && (typeof query.provider_symbol !== 'string' || !/^[A-Z0-9.^-]{1,32}$/.test(query.provider_symbol))) ||
       (query.from_date !== undefined && !date(query.from_date)) ||
       (query.to_date !== undefined && !date(query.to_date)) ||
       (query.from_date && query.to_date && query.from_date > query.to_date)) throw bad();
     const kind = (query.data_class ?? 'dividends') as DataClass;
     const symbol = (query.source_symbol_id ?? null) as string | null;
+    const providerSymbol = (query.provider_symbol ?? null) as string | null;
     const from = (query.from_date ?? null) as string | null;
     const to = (query.to_date ?? null) as string | null;
-    const scope = JSON.stringify([kind, symbol, from, to]);
+    const scope = JSON.stringify([kind, symbol, providerSymbol, from, to]);
     const last = decode(query.cursor, scope, 'action');
     const rows = await this.database.pool.query<ActionRow>(
       `WITH latest AS (
@@ -106,9 +108,10 @@ export class CorporateActionsController {
            AND prior.data_class = l.data_class AND prior.event_key = l.event_key AND prior.id <> l.id) AS has_older_revisions
        FROM latest l JOIN source_symbols s ON s.id = l.source_symbol_id
          JOIN raw_file_manifests m ON m.id = l.first_manifest_id
-       WHERE ($5::date IS NULL OR (l.ex_date, l.event_key, l.id) < ($5::date, $6::text, $7::uuid))
+       WHERE ($5::text IS NULL OR s.provider_symbol = $5)
+         AND ($6::date IS NULL OR (l.ex_date, l.event_key, l.id) < ($6::date, $7::text, $8::uuid))
        ORDER BY l.ex_date DESC, l.event_key DESC, l.id DESC LIMIT 101`,
-      [kind, symbol, from, to, last?.[0] ?? null, last?.[1] ?? null, last?.[2] ?? null],
+      [kind, symbol, from, to, providerSymbol, last?.[0] ?? null, last?.[1] ?? null, last?.[2] ?? null],
     );
     const page = rows.rows.slice(0, 100);
     await verifyFiles(page);

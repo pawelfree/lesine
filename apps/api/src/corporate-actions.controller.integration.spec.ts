@@ -102,12 +102,16 @@ test('corporate action API reads current revisions, paginates, and rejects corru
       assert.equal(secondPage.data.rows.length, 1);
       assert.equal(secondPage.page.next_cursor, null);
       assert.equal((await controller.list({ data_class: 'splits' })).data.rows[0].event_key, splitKey);
+      assert.equal((await controller.list({ provider_symbol: 'TEST', from_date: '2026-05-01' })).data.rows.length, 1);
+      assert.equal((await controller.list({ provider_symbol: 'OTHER' })).data.rows.length, 0);
       assert.equal((await controller.list({ data_class: 'dividends', from_date: '2026-12-01' })).data.rows.length, 0);
       const history = await controller.revisions(dividendKey, {});
       assert.deepEqual(history.data.rows.map((row) => row.revision_id), [corrected, first]);
       await assert.rejects(() => controller.list({ data_class: 'splits', cursor: firstPage.page.next_cursor }),
         (error: unknown) => (error as { status?: number }).status === 400);
       await assert.rejects(() => controller.list({ from_date: '2026-02-30' }),
+        (error: unknown) => (error as { status?: number }).status === 400);
+      await assert.rejects(() => controller.list({ provider_symbol: 'TEST;DROP' }),
         (error: unknown) => (error as { status?: number }).status === 400);
       await assert.rejects(() => controller.revisions(dividendKey, { cursor: 'malformed' }),
         (error: unknown) => (error as { status?: number }).status === 400);

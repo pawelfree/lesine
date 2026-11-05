@@ -26,3 +26,8 @@ Remaining: Angular view, full gate, review, and spec archival.
 2026-11-05 — Mark class-specific status step 1.2 complete at bd653ba.
 Verification: both action-class responses and unchanged EOD default pass in the isolated database.
 Remaining: UI, full gate, review, and moving the spec.
+
+2026-11-05 — Add the `/data` corporate-actions section and an exact provider-symbol filter.
+Decision: keep the screen read-only; revisions and retained rows remain visible when the action import is quota-paused.
+Verification: 16 Angular tests and the targeted PostgreSQL action API test pass on Node 24.
+Remaining: browser smoke, full gate, review, documentation, and spec archival.
