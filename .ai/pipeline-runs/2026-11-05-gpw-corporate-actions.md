@@ -36,7 +36,7 @@ Changing job/chunk/manifest constraints can regress the EOD importer. Action eve
 ### Phase 1: Action storage and scheduling
 
 - [x] 1.1 Extend schema and import-job planning for per-kind action requests without changing EOD requests. — 93522fc
-- [ ] 1.2 Add dividend and split normalizers and worker dispatch through the existing budget, lease and file-manifest path.
+- [x] 1.2 Add dividend and split normalizers and worker dispatch through the existing budget, lease and file-manifest path. — ac0a97d
 
 ### Phase 2: Corrections and verification
 

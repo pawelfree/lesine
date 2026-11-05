@@ -23,3 +23,8 @@ Remaining: worker normalization, correction handling, documentation and full val
 Decision: retain adjusted and historical dividend values separately; same-day ambiguous events stay flagged.
 Verification: worker unit and isolated PostgreSQL import integration tests pass.
 Remaining: action reader, documentation, full gate and review.
+
+2026-11-05 — Mark dividend/split worker step 1.2 complete at ac0a97d.
+Decision: later corrections use new revisions; repeated unchanged responses link the existing revision.
+Verification: relevant worker tests passed against the isolated PostgreSQL server.
+Remaining: action reader, documentation, full gate and review.
