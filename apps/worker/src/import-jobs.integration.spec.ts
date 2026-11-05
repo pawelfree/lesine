@@ -303,6 +303,7 @@ test('action import retains corrections and withdrawals with immutable source ma
         return new Response(JSON.stringify([{ date: '2026-08-01', split: '3.000000/2.000000' }]),
           { status: 200 });
       });
+      await processImport(pool, async () => { throw new Error('completed split refetched'); });
       const split = await pool.query(`SELECT split_numerator, split_denominator
         FROM corporate_action_revisions WHERE source_symbol_id = $1 AND data_class = 'splits'`, [sourceId]);
       assert.equal(split.rows[0].split_numerator, '3');
@@ -324,6 +325,17 @@ test('action import retains corrections and withdrawals with immutable source ma
       await writeFile(join(bundle, 'database.dump'), 'fixture-dump');
       await exportBundle(pool, bundle);
       await verifyBundle(bundle);
+      const missingJob = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['splits'],
+        '2025-01-01', '2025-12-31', $2, 'backfill')`, [missingJob, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+        VALUES ($1, $2, $3, 'splits', '2025-01-01', '2025-12-31')`,
+      [randomUUID(), missingJob, sourceId]);
+      await processImport(pool, async () => new Response('Symbol not found', { status: 404 }));
+      const failed = await pool.query('SELECT status, error_code FROM import_jobs WHERE id = $1', [missingJob]);
+      assert.deepEqual(failed.rows[0], { status: 'failed', error_code: 'source_unavailable' });
+      assert.equal(await processImport(pool, async () => { throw new Error('404 retried'); }), false);
     } finally {
       if (previous.token === undefined) delete process.env.EODHD_API_TOKEN; else process.env.EODHD_API_TOKEN = previous.token;
       if (previous.budget === undefined) delete process.env.LESINE_EODHD_DAILY_BUDGET;

@@ -48,3 +48,8 @@ Remaining: update progress, run authoritative PR review and fix any findings.
 Decision: the implementation plan stays in progress until authoritative review finishes.
 Verification: migration, reader, importer and EOD regression tests passed; Compose was cleaned up.
 Remaining: PR review and any required fixes.
+
+2026-11-05 — Fix review finding: a provider 404 now fails the job without repeated quota spend.
+Decision: treat unknown action symbols as a permanent source-unavailable result, preserving prior chunks.
+Verification: targeted PostgreSQL import test and the configured Node 24 build pass.
+Remaining: publish fix, re-review and finish PR handoff.

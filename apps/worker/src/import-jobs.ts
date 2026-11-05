@@ -279,7 +279,7 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
       await changeStatus(pool, lease, 'quota_wait', 'provider_rate_limit', retryAfter(response.headers.get('retry-after')));
       return true;
     }
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401 || response.status === 403 || response.status === 404) {
       await changeStatus(pool, lease, 'failed', 'source_unavailable', null);
       return true;
     }
