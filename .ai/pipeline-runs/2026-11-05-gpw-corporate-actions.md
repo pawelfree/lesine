@@ -1,6 +1,6 @@
 # GPW corporate actions
 
-Status: in-progress
+Status: complete
 Source doc: .ai/specs/2026-11-05-gpw-corporate-actions.md
 Issue: #6
 Spec PR: #26
@@ -30,6 +30,8 @@ Changing job/chunk/manifest constraints can regress the EOD importer. Action eve
 4. Verify integration, backup/restore and local Compose behavior, then document usage and source limits.
 
 ## Progress
+
+PR: #27
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
