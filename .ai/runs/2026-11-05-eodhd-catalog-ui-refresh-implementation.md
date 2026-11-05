@@ -23,3 +23,7 @@ Verification: isolated Docker worker integration suites passed (3 tests). Remain
 2026-11-05 — Add catalog refresh API, versioned current-list reads and current-membership EOD import planning.
 Decision: server-side confirmation and pointer publication share a transaction lock; stale list versions require a fresh decision.
 Verification: isolated API database integration passed (3 tests) and TypeScript compiled. Remaining: UI, full smoke and review.
+
+2026-11-05 — Mark worker step 1.2 and API step 1.3 complete in the execution plan.
+Decision: phase 1 is ready for owner UI integration and full-stack verification.
+Remaining: UI commit, Docker/browser smoke, review and PR readiness.
