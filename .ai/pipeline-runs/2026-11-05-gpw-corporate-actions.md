@@ -44,3 +44,7 @@ PR: #27
 
 - [x] 2.1 Retain duplicate/corrected/withdrawn action revisions and expose source-backed reads for future snapshots. — 923dbad
 - [x] 2.2 Verify integration, backup/restore and local Compose behavior, then document usage and source limits. — 4817ea1
+
+### Phase 3: Snapshot migration order
+
+- [x] 3.1 Share the archive-generation counter when snapshot migration 010 ran first; test both orders. — a31e8b9
