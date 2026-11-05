@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Body, Controller, Get, HttpCode, HttpException, Param, Post } from '@nestjs/common';
+import type { PoolClient } from 'pg';
 import { Database } from './database.js';
 
 type Request = { provider?: unknown; market_scope?: unknown; data_classes?: unknown; mode?: unknown; from_date?: unknown; to_date?: unknown };
@@ -8,6 +9,63 @@ const idPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[
 const requestFields = new Set(['provider', 'market_scope', 'data_classes', 'mode', 'from_date', 'to_date']);
 const error = (code: string, message: string, status: number): HttpException =>
   new HttpException({ error: { code, message, field_errors: [], retry_after_utc: null } }, status);
+const day = 86_400_000;
+type DataClass = 'daily_bars' | 'dividends' | 'splits';
+const actionClass = (value: DataClass): boolean => value === 'dividends' || value === 'splits';
+
+export function missingActionWindows(fromDate: string, toDate: string,
+  covered: { from_date: string; to_date: string }[]): { from: string; to: string }[] {
+  const start = Date.parse(`${fromDate}T00:00:00Z`);
+  const end = Date.parse(`${toDate}T00:00:00Z`);
+  let cursor = start;
+  const windows: { from: string; to: string }[] = [];
+  const iso = (value: number): string => new Date(value).toISOString().slice(0, 10);
+  for (const interval of covered.sort((a, b) => a.from_date.localeCompare(b.from_date))) {
+    const left = Math.max(start, Date.parse(`${interval.from_date}T00:00:00Z`));
+    const right = Math.min(end, Date.parse(`${interval.to_date}T00:00:00Z`));
+    if (right < cursor || left > end) continue;
+    if (left > cursor) windows.push({ from: iso(cursor), to: iso(left - day) });
+    cursor = Math.max(cursor, right + day);
+    if (cursor > end) break;
+  }
+  if (cursor <= end) windows.push({ from: iso(cursor), to: iso(end) });
+  return windows;
+}
+
+async function planActionChunks(client: PoolClient, jobId: string, marketScope: string,
+  dataClass: DataClass, fromDate: string, toDate: string, mode: string): Promise<void> {
+  const symbols = await client.query<{ id: string }>(`SELECT s.id FROM source_symbols s
+    WHERE s.provider = 'eodhd' AND ($1 = 'all' OR s.market_segment = $1)
+      AND (NOT EXISTS (SELECT 1 FROM catalog_head WHERE provider = 'eodhd') OR EXISTS (
+        SELECT 1 FROM catalog_head h JOIN catalog_refresh_members m ON m.job_id = h.job_id
+        WHERE h.provider = 'eodhd' AND m.source_symbol_id = s.id)) ORDER BY s.id`, [marketScope]);
+  const prior = mode === 'incremental' ? await client.query<{
+    resource_key: string; from_date: string; to_date: string;
+  }>(`SELECT c.resource_key, to_char(c.from_date, 'YYYY-MM-DD') AS from_date,
+      to_char(c.to_date, 'YYYY-MM-DD') AS to_date FROM import_chunks c
+      JOIN import_jobs j ON j.id = c.job_id JOIN source_symbols s ON s.id = c.resource_key
+      WHERE j.provider = 'eodhd' AND c.data_class = $1 AND c.status = 'done'
+        AND c.manifest_id IS NOT NULL AND c.to_date >= $2::date AND c.from_date <= $3::date
+        AND ($4 = 'all' OR s.market_segment = $4)
+      ORDER BY c.resource_key, c.from_date`, [dataClass, fromDate, toDate, marketScope]) : { rows: [] };
+  const bySymbol = new Map<string, { from_date: string; to_date: string }[]>();
+  for (const interval of prior.rows) {
+    const rows = bySymbol.get(interval.resource_key) ?? [];
+    rows.push(interval);
+    bySymbol.set(interval.resource_key, rows);
+  }
+  const keys: string[] = []; const froms: string[] = []; const tos: string[] = [];
+  for (const symbol of symbols.rows) {
+    const windows = mode === 'backfill' ? [{ from: fromDate, to: toDate }]
+      : missingActionWindows(fromDate, toDate, bySymbol.get(symbol.id) ?? []);
+    for (const window of windows) { keys.push(symbol.id); froms.push(window.from); tos.push(window.to); }
+  }
+  if (!keys.length) return;
+  await client.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date, to_date)
+    SELECT gen_random_uuid(), $1, x.resource_key, $2, x.from_date, x.to_date
+    FROM unnest($3::text[], $4::date[], $5::date[]) AS x(resource_key, from_date, to_date)`,
+  [jobId, dataClass, keys, froms, tos]);
+}
 
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !datePattern.test(value)) return false;
@@ -25,15 +83,18 @@ export class ImportJobsController {
     if (!body || typeof body !== 'object' || Object.keys(body).some((field) => !requestFields.has(field)) ||
       body.provider !== 'eodhd' || typeof body.market_scope !== 'string' ||
       !['main', 'newconnect', 'all'].includes(body.market_scope) ||
-      !Array.isArray(body.data_classes) || body.data_classes.length !== 1 || body.data_classes[0] !== 'daily_bars' ||
+      !Array.isArray(body.data_classes) || body.data_classes.length !== 1 ||
+      !['daily_bars', 'dividends', 'splits'].includes(body.data_classes[0] as string) ||
       typeof body.mode !== 'string' || !['backfill', 'incremental'].includes(body.mode) ||
       !validDate(body.from_date) || !validDate(body.to_date) ||
       body.from_date > body.to_date ||
-      (Date.parse(`${body.to_date}T00:00:00Z`) - Date.parse(`${body.from_date}T00:00:00Z`)) > 366 * 86_400_000) {
+      (body.data_classes[0] === 'daily_bars' &&
+        (Date.parse(`${body.to_date}T00:00:00Z`) - Date.parse(`${body.from_date}T00:00:00Z`)) > 366 * day)) {
       throw error('invalid_request', 'Nieprawidłowy zakres importu.', 400);
     }
     const id = randomUUID();
-    const scopeHash = createHash('sha256').update(JSON.stringify(['eodhd', body.market_scope, ['daily_bars']])).digest('hex');
+    const dataClass = body.data_classes[0] as DataClass;
+    const scopeHash = createHash('sha256').update(JSON.stringify(['eodhd', body.market_scope, [dataClass]])).digest('hex');
     const client = await this.database.pool.connect();
     try {
       await client.query('BEGIN');
@@ -44,12 +105,15 @@ export class ImportJobsController {
       if (!source.rowCount) { await client.query('ROLLBACK'); throw error('source_unavailable', 'Najpierw pobierz katalog źródła.', 503); }
       const job = await client.query<{ started_at: Date }>(
         `INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date, scope_hash, mode)
-         VALUES ($1, 'eodhd', $2, ARRAY['daily_bars'], $3, $4, $5, $6) RETURNING started_at`,
-        [id, body.market_scope, body.from_date, body.to_date, scopeHash, body.mode],
+         VALUES ($1, 'eodhd', $2, ARRAY[$7::text], $3, $4, $5, $6) RETURNING started_at`,
+        [id, body.market_scope, body.from_date, body.to_date, scopeHash, body.mode, dataClass],
       );
-      // Subtract archived ranges day by day, then coalesce adjacent missing dates across months.
-      // Each batch covers at most 367 inclusive dates (366 elapsed days), the request API limit.
-      await client.query(
+      if (actionClass(dataClass)) {
+        await planActionChunks(client, id, body.market_scope, dataClass, body.from_date, body.to_date, body.mode);
+      } else {
+        // Subtract archived ranges day by day, then coalesce adjacent missing dates across months.
+        // Each batch covers at most 367 inclusive dates (366 elapsed days), the request API limit.
+        await client.query(
         `WITH missing AS (
            SELECT s.id AS resource_key, d.day::date AS session_date
            FROM source_symbols s
@@ -77,7 +141,8 @@ export class ImportJobsController {
          SELECT gen_random_uuid(), $1, resource_key, min(session_date), max(session_date)
          FROM batched GROUP BY resource_key, gap_key, batch_key`,
         [id, body.market_scope, body.from_date, body.to_date, body.mode],
-      );
+        );
+      }
       await client.query('COMMIT');
       return { data: { id, status: 'queued', scope_hash: scopeHash, created_at: job.rows[0].started_at.toISOString() } };
     } catch (cause) {
@@ -93,7 +158,8 @@ export class ImportJobsController {
       `SELECT id, status, cursor, error_code, retry_after_utc, updated_at,
        (SELECT count(*)::int FROM import_chunks WHERE job_id = j.id) AS total_chunks,
        (SELECT count(*)::int FROM import_chunks WHERE job_id = j.id AND status = 'done') AS completed_chunks
-       FROM import_jobs j ORDER BY started_at DESC LIMIT 1`,
+       FROM import_jobs j WHERE j.data_classes = ARRAY['daily_bars']::text[]
+       ORDER BY started_at DESC LIMIT 1`,
     );
     return { data: result.rows[0] as Record<string, unknown> ?? null };
   }
