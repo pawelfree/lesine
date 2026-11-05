@@ -5,6 +5,7 @@ import { CoverageController } from './coverage.controller.js';
 import { CoverageService } from './coverage.service.js';
 import { Database } from './database.js';
 import { ImportJobsController } from './import-jobs.controller.js';
+import { IdentitiesController } from './identities.controller.js';
 
 @Controller('health')
 class HealthController {
@@ -17,5 +18,5 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController, CatalogController, CatalogRefreshesController, ImportJobsController, CoverageController], providers: [Database, CoverageService] })
+@Module({ controllers: [HealthController, CatalogController, CatalogRefreshesController, ImportJobsController, CoverageController, IdentitiesController], providers: [Database, CoverageService] })
 export class AppModule {}

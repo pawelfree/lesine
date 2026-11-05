@@ -27,6 +27,23 @@ The worker checkpoints each successful request as one chunk. A longer chunk can 
 
 The **Zakres notowań EOD** section on `/data` reads only local PostgreSQL evidence through `GET /api/coverage`; refreshing it never calls EODHD or spends source quota. It shows each retained source identity, acquired session range, unfinished import-request intervals and archived empty responses, with market, listing and status filters. Calendar dates between returned bars are not treated as gaps, and a one-year Free sample is not called a complete GPW archive. The report timestamp records calculation time, while **Ostatnie zapisane EOD** records the last committed acquisition. A source failure leaves old acquired rows readable with the import failure visible. If the API is offline, the browser can show only its last saved first page, clearly marked as cached with the saved filter scope; this display cache is not research data. A local-access denial clears it.
 
+## Owner-attested instrument identities
+
+Historical source IDs remain separate until the owner supplies dated, documented links. Place a UTF-8 JSON map in the private `identity-input/` directory (or set `LESINE_IDENTITY_INPUT_HOST_DIR` to another private directory before starting Compose). Do not commit this file. Each source ID comes from `GET /api/catalog`; the stable instrument key is chosen by the owner and is not inferred from the ticker:
+
+```json
+{"schema_version":1,"links":[{"source_symbol_id":"<64-character source ID>","instrument_key":"issuer-001","valid_from":"2024-01-01","valid_to_exclusive":null,"evidence":{"source":"owner-document","ref":"document/page","observed_at":"2025-01-01"}}]}
+```
+
+Validate without writes, then publish the complete map:
+
+```sh
+docker compose exec worker node apps/worker/dist/identities-cli.js identities validate /data/identity-input/map.json
+docker compose exec worker node apps/worker/dist/identities-cli.js identities import /data/identity-input/map.json
+```
+
+The import rejects unknown source IDs, overlapping periods and unsafe input files. It retains a checksummed private copy and switches the active batch atomically. Repeating the active file is idempotent; importing a corrected or earlier file creates a new batch while older batches remain available. `GET /api/instruments/{id}/identities` and paginated `GET /api/identities/unresolved` expose the active owner-attested map without changing EOD observations. The evidence reference is an owner assertion, not independently verified provider data. The archive backup includes every retained identity file.
+
 ## Import dividends and splits
 
 `POST /api/import-jobs` accepts one `data_classes` value per job: `daily_bars`, `dividends` or `splits`. The action classes use EODHD's per-symbol JSON endpoints. Submit explicit `from_date` and `to_date` values; the existing local-only session and CSRF rules apply. A job requests each missing source-symbol/date window once, including windows that previously returned an empty array; `mode: "backfill"` deliberately rechecks the requested window for corrections or withdrawals. Each dividend and split request costs one unit of the same `LESINE_EODHD_DAILY_BUDGET`. For roughly 1,000 source identities, importing both classes from an empty archive therefore needs roughly 2,000 calls; set the budget according to the account's actual allowance or let the worker pause and resume across days. The current `/data` import status and coverage report remain EOD-only; the action display is separate follow-up work.
