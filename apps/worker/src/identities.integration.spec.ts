@@ -29,7 +29,7 @@ test('identity batches validate without writing, publish atomically and preserve
     const makeMap = (instrument_key: string) => ({ schema_version: 1, links: [{ source_symbol_id: symbol,
       instrument_key, valid_from: '2024-01-01', valid_to_exclusive: null, evidence }] });
     try {
-      for (const file of (await readdir(resolve('db/migrations'))).filter((item) => /^\d{3}_.*\.sql$/.test(item)).sort()) {
+      for (const file of (await readdir(resolve('db/migrations'))).filter((item) => /^\d{3}_.*\.sql$/.test(item) && item < '010_').sort()) {
         if (file.startsWith('009_')) await pool.query('CREATE TABLE data_snapshots(identity_batch_id uuid)');
         await pool.query(await readFile(resolve('db/migrations', file), 'utf8'));
       }

@@ -22,6 +22,11 @@ function checkedPath(root: string, ref: FileRef): string {
   return resolve(root, ref.relative_path);
 }
 
+export async function assertArchivedFile(ref: FileRef): Promise<void> {
+  if (await hashFile(checkedPath(responseRoot(), ref)) !== ref.sha256)
+    throw new Error(`archive_file_corrupt: ${ref.relative_path}`);
+}
+
 async function checkedCopy(sourceRoot: string, targetRoot: string, ref: FileRef): Promise<void> {
   const source = checkedPath(sourceRoot, ref);
   const target = checkedPath(targetRoot, ref);
