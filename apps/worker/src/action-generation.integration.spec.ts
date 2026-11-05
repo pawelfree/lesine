@@ -18,6 +18,7 @@ test('action migration joins an archive-generation counter installed earlier',
         await pool.query(await readFile(resolve('db/migrations', file), 'utf8'));
       await pool.query(`CREATE TABLE archive_generation_state(singleton boolean PRIMARY KEY, generation bigint NOT NULL);
         INSERT INTO archive_generation_state(singleton, generation) VALUES (true, 1);
+        CREATE TABLE snapshot_action_revisions(action_revision_id uuid NOT NULL);
         CREATE FUNCTION assign_action_archive_generation() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN UPDATE archive_generation_state SET generation = generation + 1 WHERE singleton = true
           RETURNING generation INTO NEW.archive_generation; RETURN NEW; END $$;`);
@@ -26,6 +27,10 @@ test('action migration joins an archive-generation counter installed earlier',
         SELECT 1 FROM information_schema.columns WHERE table_name = 'corporate_action_revisions'
           AND column_name = 'archive_generation') AS exists`);
       assert.equal(hasColumn.rows[0].exists, true);
+      const hasForeignKey = await pool.query<{ exists: boolean }>(`SELECT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'snapshot_action_revisions'
+          AND constraint_name = 'snapshot_action_revision_fk') AS exists`);
+      assert.equal(hasForeignKey.rows[0].exists, true);
       const symbol = 'a'.repeat(64);
       const job = randomUUID();
       const chunk = randomUUID();

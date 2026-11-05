@@ -2,7 +2,7 @@
 
 Goals: Implement quota-aware EODHD dividend and split import with immutable source-backed revisions, retaining existing EOD behavior.
 Specification: [2026-11-05-gpw-corporate-actions.md](../specs/2026-11-05-gpw-corporate-actions.md) (design PR #26)
-Status: done
+Status: in-progress
 
 2026-11-05 — Add the phased implementation plan and open an isolated implementation PR.
 Decision: use the existing importer, local budget and raw-file manifest boundary; track action kind per chunk.
@@ -70,3 +70,7 @@ Remaining: re-review and final PR handoff.
 2026-11-05 — Commit records the completed migration-order step and re-review of PR #27.
 Verification: both migration orders and the new PostgreSQL regression test pass; no code blocker remains.
 Remaining: independent review and QA gate before merge.
+
+2026-11-05 — Commit adds the snapshot-to-action foreign key when migration 010 was installed before 008.
+Decision: migration 010 adds the same key when 008 was installed first.
+Remaining: test both orders, review and restore the completed status.

@@ -65,4 +65,8 @@ DO $$ BEGIN
     CREATE TRIGGER action_archive_generation BEFORE INSERT ON corporate_action_revisions
       FOR EACH ROW EXECUTE FUNCTION assign_action_archive_generation();
   END IF;
+  IF to_regclass('public.snapshot_action_revisions') IS NOT NULL THEN
+    ALTER TABLE snapshot_action_revisions ADD CONSTRAINT snapshot_action_revision_fk
+      FOREIGN KEY (action_revision_id) REFERENCES corporate_action_revisions(id);
+  END IF;
 END $$;
