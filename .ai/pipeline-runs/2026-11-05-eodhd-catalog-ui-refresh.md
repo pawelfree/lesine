@@ -42,5 +42,5 @@ The catalog view and new EOD job planning change semantics. Keep the legacy list
 
 ### Phase 2: Owner UI
 
-- [ ] 2.1 Add `/data` action, current-list confirmation, progress, failure and retry states.
+- [x] 2.1 Add `/data` action, current-list confirmation, progress, failure and retry states. — 383523f
 - [ ] 2.2 Add tests, documentation and Compose/browser verification; run the configured gate and review.

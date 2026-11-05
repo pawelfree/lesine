@@ -31,3 +31,7 @@ Remaining: UI commit, Docker/browser smoke, review and PR readiness.
 2026-11-05 — Add `/data` catalog action, confirmation, progress/retry and version-aware paging; update owner instructions.
 Decision: empty catalog queues directly; a nonempty list requires an explicit dialog and a matching server-side catalog id.
 Verification: Angular UI suite passed (6 tests). Remaining: full-stack smoke, review and PR readiness.
+
+2026-11-05 — Mark the owner UI step 2.1 complete in the execution plan.
+Decision: keep browser and Docker evidence in the final verification step.
+Remaining: full-stack smoke, independent review and PR readiness.
