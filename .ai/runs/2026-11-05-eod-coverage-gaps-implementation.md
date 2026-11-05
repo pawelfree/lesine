@@ -15,3 +15,7 @@ Verification: Node 24 API build and isolated PostgreSQL coverage integration tes
 2026-11-05 — Marked both Phase 1 plan steps complete at commit 4bf3fa1.
 Decision: one tested phase commit covers schema/calculator and the API contract together.
 Remaining: Phase 2 UI, final validation and PR handoff.
+
+2026-11-05 — Added the EOD coverage section, browser cache states, filters, tests and contract documentation.
+Decision: cached filters retain their saved values; access denial clears cached rows. The view labels unknown GPW history explicitly.
+Verification: Angular tests passed (10/10); isolated Compose/browser smoke showed two retained fixture identities and a working delisted filter. Remaining: PR review, evidence upload and environment cleanup.
