@@ -1,6 +1,7 @@
 import { Injectable, Logger, Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { processImport } from './import-jobs.js';
+import { processCatalogRefresh } from './catalog-refresh.js';
 import { verifyArchive } from './archive-files.js';
 
 @Injectable()
@@ -18,7 +19,7 @@ class WorkerProcess implements OnApplicationBootstrap, OnModuleDestroy {
     this.heartbeat = setInterval(() => {
       if (this.working) return;
       this.working = true;
-      void processImport(this.pool).catch((error: unknown) => this.logger.error(error)).finally(() => { this.working = false; });
+      void processCatalogRefresh(this.pool).then(() => processImport(this.pool)).catch((error: unknown) => this.logger.error(error)).finally(() => { this.working = false; });
     }, 5_000);
   }
 

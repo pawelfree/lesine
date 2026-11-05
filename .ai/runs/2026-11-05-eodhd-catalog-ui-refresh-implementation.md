@@ -15,3 +15,7 @@ Verification: API TypeScript build passed; database integration will run in the 
 2026-11-05 — Mark schema step 1.1 complete in the execution plan after commit b7652f2.
 Decision: retain database integration execution as a phase gate in isolated Compose.
 Remaining: implement worker, API, UI and end-to-end checks.
+
+2026-11-05 — Implement durable catalog-only worker jobs, two-list staging, budget/lease handling, atomic publication and guarded CLI probe.
+Decision: require distinct active/delisted codes in one published pair; retain old identities and use current membership for depth samples.
+Verification: isolated Docker worker integration suites passed (3 tests). Remaining: API, UI and full smoke/review.

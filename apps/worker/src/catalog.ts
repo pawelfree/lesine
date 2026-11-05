@@ -37,7 +37,7 @@ export function normalizeCatalog(payload: unknown, listingState: ListingState, r
   return rows;
 }
 
-async function reserveCall(client: PoolClient, dailyLimit: number): Promise<boolean> {
+export async function reserveCall(client: PoolClient, dailyLimit: number): Promise<boolean> {
   const day = new Date().toISOString().slice(0, 10);
   const result = await client.query(
     `INSERT INTO source_daily_budget(provider, utc_day, reserved_calls) VALUES ('eodhd', $1, 1)
@@ -48,7 +48,7 @@ async function reserveCall(client: PoolClient, dailyLimit: number): Promise<bool
   return result.rowCount === 1;
 }
 
-async function recordProbe(pool: Pool, state: ListingState, status: 'available' | 'unavailable' | 'quota_wait', count: number | null, responseHash: string | null, code: string | null): Promise<void> {
+export async function recordProbe(pool: Pool, state: ListingState, status: 'available' | 'unavailable' | 'quota_wait', count: number | null, responseHash: string | null, code: string | null): Promise<void> {
   await pool.query(
     `INSERT INTO catalog_probes(provider, listing_state, status, item_count, response_sha256, error_code)
      VALUES ('eodhd', $1, $2, $3, $4, $5)`,
@@ -113,7 +113,7 @@ async function probeDepth(pool: Pool, fetcher: typeof fetch, token: string, stat
   }
 }
 
-async function retainResponse(raw: string, responseHash: string): Promise<void> {
+export async function retainResponse(raw: string, responseHash: string): Promise<void> {
   const directory = resolve(process.env.LESINE_RESPONSE_DIR ?? '/data/provider-responses', 'catalog');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const target = resolve(directory, `${responseHash}.json`);
@@ -148,77 +148,25 @@ async function probeCatalogUnlocked(pool: Pool, fetcher: typeof fetch): Promise<
     await Promise.all((['active', 'delisted'] as const).map((state) => recordProbe(pool, state, 'unavailable', null, null, 'missing_credential')));
     return;
   }
+  const today = await pool.query<{ listing_state: ListingState }>(`SELECT DISTINCT listing_state
+    FROM catalog_probes WHERE provider = 'eodhd' AND checked_at::date = CURRENT_DATE
+      AND status = 'available'`);
+  if (today.rows.length < 2) {
+    const { queueCatalogRefresh, processCatalogRefresh } = await import('./catalog-refresh.js');
+    await queueCatalogRefresh(pool);
+    await processCatalogRefresh(pool, fetcher);
+  }
+  const current = await pool.query<{ listing_state: ListingState; provider_symbol: string }>(
+    `SELECT DISTINCT ON (s.listing_state) s.listing_state, s.provider_symbol
+     FROM catalog_head h JOIN catalog_refresh_jobs j ON j.id = h.job_id
+     JOIN catalog_refresh_members m ON m.job_id = j.id
+     JOIN source_symbols s ON s.id = m.source_symbol_id
+     WHERE h.provider = 'eodhd' AND j.origin = 'eodhd_war_pair'
+     ORDER BY s.listing_state, s.provider_symbol`,
+  );
   const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
   const dailyLimit = Number.isSafeInteger(configured) && configured >= 1 ? configured : 2;
-  const sampleSymbols: Partial<Record<ListingState, string>> = {};
-  for (const state of ['active', 'delisted'] as const) {
-    const alreadyProbed = await pool.query(
-      `SELECT 1 FROM catalog_probes WHERE provider = 'eodhd' AND listing_state = $1
-       AND checked_at::date = CURRENT_DATE AND status = 'available' LIMIT 1`, [state],
-    );
-    if (alreadyProbed.rowCount) {
-      const symbol = await pool.query(
-        `SELECT provider_symbol FROM source_symbols WHERE provider = 'eodhd' AND listing_state = $1
-         AND last_seen_at::date = CURRENT_DATE ORDER BY provider_symbol LIMIT 1`, [state],
-      );
-      if (symbol.rows[0]) sampleSymbols[state] = symbol.rows[0].provider_symbol as string;
-      continue;
-    }
-    const client = await pool.connect();
-    let reserved = false;
-    try {
-      reserved = await reserveCall(client, dailyLimit);
-    } finally {
-      client.release();
-    }
-    if (!reserved) {
-      await recordProbe(pool, state, 'quota_wait', null, null, 'daily_budget_reached');
-      continue;
-    }
-    const url = new URL('https://eodhd.com/api/exchange-symbol-list/WAR');
-    url.searchParams.set('api_token', token);
-    url.searchParams.set('fmt', 'json');
-    if (state === 'delisted') url.searchParams.set('delisted', '1');
-    try {
-      const response = await fetcher(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) });
-      if (!response.ok) throw new Error(response.status === 429 ? 'quota_wait' : 'source_unavailable');
-      const raw = await response.text();
-      if (raw.length > 20_000_000) throw new Error('invalid_catalog_payload');
-      const responseHash = hash(raw);
-      const rows = normalizeCatalog(JSON.parse(raw) as unknown, state, responseHash);
-      await retainResponse(raw, responseHash);
-      const transaction = await pool.connect();
-      try {
-        await transaction.query('BEGIN');
-        for (const row of rows) {
-          await transaction.query(
-            `INSERT INTO source_symbols(id, provider, provider_symbol, display_name, isin, instrument_type,
-               listing_state, market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
-             VALUES ($1, 'eodhd', $2, $3, $4, $5, $6, 'unclassified', $7, now(), now())
-             ON CONFLICT (id) DO UPDATE SET last_seen_at = now(), identity_evidence_ref = EXCLUDED.identity_evidence_ref`,
-            [row.id, row.providerSymbol, row.displayName, row.isin, row.instrumentType, row.listingState, row.evidenceRef],
-          );
-        }
-        await transaction.query(
-          `INSERT INTO catalog_probes(provider, listing_state, status, item_count, response_sha256)
-           VALUES ('eodhd', $1, 'available', $2, $3)`, [state, rows.length, responseHash],
-        );
-        await transaction.query('COMMIT');
-      } catch (error) {
-        await transaction.query('ROLLBACK');
-        throw error;
-      } finally {
-        transaction.release();
-      }
-      if (rows[0]) sampleSymbols[state] = rows[0].providerSymbol;
-    } catch (error) {
-      const code = error instanceof Error && ['quota_wait', 'invalid_catalog_payload', 'invalid_catalog_row', 'invalid_catalog_code'].includes(error.message)
-        ? error.message : 'source_unavailable';
-      await recordProbe(pool, state, code === 'quota_wait' ? 'quota_wait' : 'unavailable', null, null, code);
-    }
-  }
-  for (const state of ['active', 'delisted'] as const) {
-    const symbol = sampleSymbols[state];
-    if (symbol) await probeDepth(pool, fetcher, token, state, symbol, dailyLimit);
+  for (const row of current.rows) {
+    await probeDepth(pool, fetcher, token, row.listing_state, row.provider_symbol, dailyLimit);
   }
 }
