@@ -3,7 +3,7 @@
 ## .ai/specs/2026-11-04-local-gpw-history-with-coverage.md
 
 Backlog source: .ai/specs/2026-11-04-local-gpw-history-with-coverage.md
-Last filed: 2026-11-04
+Last filed: 2026-11-05
 
 | Id | Issue | Title | Epic | Depends on | Adopted |
 |---|---|---|---|---|---|
@@ -14,6 +14,7 @@ Last filed: 2026-11-04
 | E01-S02 | [#4](https://github.com/pawelfree/lesine/issues/4) | Wznawialny import EOD z kontrolą budżetu | #1 | E01-S01 (#3) | no |
 | E01-S02-T01 | [#10](https://github.com/pawelfree/lesine/issues/10) | Trwałe zadania, kursor, budżet i dzierżawa workera | #1 | E01-S01 (#3) | no |
 | E01-S02-T02 | [#11](https://github.com/pawelfree/lesine/issues/11) | Niezmienne pliki, rewizje, manifest i kopia | #1 | E01-S02-T01 (#10) | no |
+| E01-S02-T03 | [#15](https://github.com/pawelfree/lesine/issues/15) | Ograniczyć liczbę wywołań EODHD przez większe partie importu | #1 | E01-S02-T02 (#11) | no |
 | E01-S03 | [#5](https://github.com/pawelfree/lesine/issues/5) | Widok zakresów EOD i luk | #1 | E01-S02 (#4) | no |
 | E02 | [#2](https://github.com/pawelfree/lesine/issues/2) | Kompletność historii i korekty | — | E01 (#1) | no |
 | E02-S01 | [#6](https://github.com/pawelfree/lesine/issues/6) | Działania, tożsamości i trwałe migawki | #2 | E01-S02 (#4) | no |
