@@ -43,3 +43,8 @@ Remaining: documentation, full build/smoke gate and PR review.
 Decision: the EOD Data-page status remains EOD-only; action display belongs to issue #7.
 Verification: Node 24 Compose build/health and relevant PostgreSQL integration suites pass; test infrastructure removed.
 Remaining: update progress, run authoritative PR review and fix any findings.
+
+2026-11-05 — Mark verification/documentation step 2.2 complete at 4817ea1.
+Decision: the implementation plan stays in progress until authoritative review finishes.
+Verification: migration, reader, importer and EOD regression tests passed; Compose was cleaned up.
+Remaining: PR review and any required fixes.

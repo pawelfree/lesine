@@ -41,4 +41,4 @@ Changing job/chunk/manifest constraints can regress the EOD importer. Action eve
 ### Phase 2: Corrections and verification
 
 - [x] 2.1 Retain duplicate/corrected/withdrawn action revisions and expose source-backed reads for future snapshots. — 923dbad
-- [ ] 2.2 Verify integration, backup/restore and local Compose behavior, then document usage and source limits.
+- [x] 2.2 Verify integration, backup/restore and local Compose behavior, then document usage and source limits. — 4817ea1
