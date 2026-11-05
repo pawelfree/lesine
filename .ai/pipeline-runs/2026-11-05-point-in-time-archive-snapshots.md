@@ -1,6 +1,6 @@
 # Point-in-time archive snapshots
 
-Status: in-progress
+Status: complete
 Source doc: .ai/specs/2026-11-05-point-in-time-archive-snapshots.md
 Goal: Persist immutable, provenance-checked revision references for reproducible historical research.
 
@@ -19,6 +19,8 @@ Goal: Persist immutable, provenance-checked revision references for reproducible
 
 ## Progress
 
+PR: #29
+
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles.
 
 ### Phase 1: Immutable EOD snapshots
@@ -34,4 +36,4 @@ Goal: Persist immutable, provenance-checked revision references for reproducible
 ### Phase 3: Optional archive classes and review
 
 - [x] 3.1 Pin action revisions and identity batch only when their tables exist. — a470a4d
-- [ ] 3.2 Run full build, isolated PostgreSQL and Compose smoke; review and fix findings.
+- [x] 3.2 Run full build, isolated PostgreSQL and Compose smoke; review and fix findings. — 073b5d7

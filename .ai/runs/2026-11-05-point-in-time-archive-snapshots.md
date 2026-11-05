@@ -2,7 +2,7 @@
 
 Goals: Implement immutable point-in-time archive snapshots and open a reviewed implementation PR.
 Specification: [2026-11-05-point-in-time-archive-snapshots.md](../specs/2026-11-05-point-in-time-archive-snapshots.md)
-Status: in-progress
+Status: done
 
 2026-11-05 — Commit creates the execution plan before snapshot code.
 Decision: migration 010 will be independent of action migration 008 and identity migration 009.
@@ -36,3 +36,8 @@ Remaining: final code review and PR publication.
 Decision: identity provenance is reported separately from local EOD availability.
 Verification: snapshot integration assertion and all three workspace builds passed; Angular required running outside the restricted sandbox.
 Remaining: complete review and publish PR evidence.
+
+2026-11-05 — Commit closes the snapshot execution plan after local review and verification.
+Verification: isolated PostgreSQL integration, both migration orders, Compose smoke and all workspace builds passed.
+Decision: PR remains subject to independent risk-high review and manual QA before merge.
+Remaining: none for implementation; publish the review result and handoff.
