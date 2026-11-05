@@ -13,3 +13,8 @@ Remaining: schema, importer, correction handling and validation.
 Decision: completed action request windows, including empty responses, suppress incremental refetches.
 Verification: API migration/planner integration tests pass in an isolated PostgreSQL container.
 Remaining: worker normalization, correction handling, documentation and full validation.
+
+2026-11-05 — Mark schema and action-window scheduling step 1.1 complete at 93522fc.
+Decision: action jobs remain separate from EOD jobs so the existing Data-page status keeps its meaning.
+Verification: PostgreSQL planner and migration tests passed before the implementation commit.
+Remaining: worker normalization, correction handling, documentation and full validation.
