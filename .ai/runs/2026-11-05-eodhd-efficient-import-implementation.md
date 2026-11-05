@@ -1,0 +1,42 @@
+# EODHD quota-efficient import implementation — issue #15
+
+Goals: Implement the accepted one-year EOD batching design, verify quota/archive/restart behavior, and publish a ready implementation PR.
+Spec: [Quota-efficient EODHD import batches](../specs/2026-11-05-eodhd-efficient-import-batches.md)
+Status: done
+
+## Commit log
+
+2026-11-05 — Add the phased execution plan and task journal before code changes.
+Decision: preserve existing API/worker contracts and materialized jobs; validate the longer request with isolated PostgreSQL and fake-provider fixtures.
+Verification: issue #15, merged spec #16, current planner and worker, repository instructions and configured gate were checked.
+Remaining: implement planner, verification, documentation, review and ready PR.
+
+2026-11-05 — Coalesce contiguous missing dates across months with an explicit 367-date batch cap and planner integration cases.
+Decision: preserve manifest-backed completed ranges and existing materialized jobs; legacy chunks remain eligible for reimport.
+Verification: API TypeScript build passed; isolated PostgreSQL integration will run in the dedicated PR environment.
+Remaining: worker request/budget verification, README, full gates and review.
+
+2026-11-05 — Mark Phase 1 planner work complete in the resumable execution plan.
+Decision: the new batch bound is explicit in SQL; PostgreSQL behavior will be checked in the isolated integration gate.
+Verification: plan references committed implementation 5b5603a and the journal remains append-only.
+Remaining: verify worker behavior and run end-to-end gates.
+
+2026-11-05 — Add year-sized fake-provider integration coverage and isolate importer tests in disposable PostgreSQL databases.
+Decision: the production worker needs no change; existing reservation, lease and manifest logic accepts the longer chunk.
+Verification: both importer integration cases and all nine worker tests passed in the dedicated Compose environment.
+Remaining: README, full build/API gates, smoke test, cleanup and review.
+
+2026-11-05 — Mark the worker verification phase complete in the resumable plan.
+Decision: keep production worker behavior unchanged after the fake-provider test confirmed two attempts consume two reservations.
+Verification: Phase 2 references commit e7f676e; the task journal contains a matching append-only entry.
+Remaining: complete documentation, broad checks and PR review.
+
+2026-11-05 — Correct README batching guidance and isolate the planner's manifest fixture in a disposable database.
+Decision: real EODHD coverage remains unverified; the import tests use fake-provider payloads, and the API route/schema stay unchanged.
+Verification: API 6/6 and worker 9/9 integration/unit tests passed in PR Compose; health and Data page returned 200; exact build passed in Node 24 Docker.
+Remaining: final diff review, plan completion, PR evidence and review. PR Compose containers, volumes, network and images were removed and verified absent.
+
+2026-11-05 — Complete the tracked plan after passing the Node 24 build, isolated integration tests and code review for PR #17.
+Decision: keep `needs-qa` for the high-risk import path; no live EODHD coverage is claimed without account access.
+Verification: review https://github.com/pawelfree/lesine/pull/17#issuecomment-6652760359; temporary Docker resources were removed and verified absent.
+Remaining: human QA and merge of the ready PR; no implementation work remains in this task.

@@ -44,8 +44,8 @@ export class ImportJobsController {
          VALUES ($1, 'eodhd', $2, ARRAY['daily_bars'], $3, $4, $5, $6) RETURNING started_at`,
         [id, body.market_scope, body.from_date, body.to_date, scopeHash, body.mode],
       );
-      // Subtract completed ranges day by day, then coalesce adjacent missing days within each month.
-      // This avoids re-requesting an overlapping period when an earlier job used different boundaries.
+      // Subtract archived ranges day by day, then coalesce adjacent missing dates across months.
+      // Each batch covers at most 367 inclusive dates (366 elapsed days), the request API limit.
       await client.query(
         `WITH missing AS (
            SELECT s.id AS resource_key, d.day::date AS session_date
@@ -57,15 +57,19 @@ export class ImportJobsController {
                WHERE j.provider = 'eodhd' AND prior.resource_key = s.id AND prior.status = 'done'
                  AND prior.manifest_id IS NOT NULL
                  AND d.day::date BETWEEN prior.from_date AND prior.to_date))
-         ), grouped AS (
-           SELECT resource_key, session_date, date_trunc('month', session_date) AS month_start,
+         ), runs AS (
+           SELECT resource_key, session_date,
              session_date - row_number() OVER (
-               PARTITION BY resource_key, date_trunc('month', session_date) ORDER BY session_date)::int AS gap_key
+               PARTITION BY resource_key ORDER BY session_date)::int AS gap_key
            FROM missing
+         ), batched AS (
+           SELECT resource_key, session_date, gap_key,
+             (row_number() OVER (PARTITION BY resource_key, gap_key ORDER BY session_date) - 1) / 367 AS batch_key
+           FROM runs
          )
          INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date)
          SELECT gen_random_uuid(), $1, resource_key, min(session_date), max(session_date)
-         FROM grouped GROUP BY resource_key, month_start, gap_key`,
+         FROM batched GROUP BY resource_key, gap_key, batch_key`,
         [id, body.market_scope, body.from_date, body.to_date, body.mode],
       );
       await client.query('COMMIT');
