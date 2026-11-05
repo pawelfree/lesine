@@ -15,7 +15,8 @@ async function isolatedPlannerPool(): Promise<{ pool: Pool; close: () => Promise
   const pool = new Pool({ database: name });
   try {
     for (const migration of ['001_source_inventory', '002_source_depth_sample',
-      '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh']) {
+      '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh',
+      '006_eod_coverage', '007_remove_expected_coverage', '008_corporate_actions']) {
       await pool.query(await readFile(resolve('db/migrations', `${migration}.sql`), 'utf8'));
     }
   } catch (error) {
@@ -90,6 +91,43 @@ test('job creation materializes bounded ranges and rejects overlapping active sc
       await pool.query('DELETE FROM source_symbols WHERE id = $1', [symbolId]);
       await close();
     }
+  });
+
+test('action planner skips manifest-backed empty windows and keeps EOD status separate',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await isolatedPlannerPool();
+    const controller = new ImportJobsController({ pool } as Database);
+    const sourceId = randomUUID();
+    const priorJob = randomUUID();
+    const priorChunk = randomUUID();
+    const hash = 'a'.repeat(64);
+    try {
+      await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
+        market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
+        VALUES ($1, 'eodhd', 'ACTION', 'active', 'main', 'fixture', now(), now())`, [sourceId]);
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode, status) VALUES ($1, 'eodhd', 'main', ARRAY['dividends'],
+        '2025-01-01', '2025-12-31', $2, 'incremental', 'done')`, [priorJob, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, data_class, from_date,
+        to_date, status) VALUES ($1, $2, $3, 'dividends', '2025-01-01', '2025-12-31', 'done')`,
+      [priorChunk, priorJob, sourceId]);
+      const manifestId = randomUUID();
+      await pool.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256,
+        provider, data_class, market_scope, row_count)
+        VALUES ($1, $2, $3, $4, 'eodhd', 'dividends', 'main', 0)`,
+      [manifestId, priorChunk, `import/${hash}.json`, hash]);
+      await pool.query('UPDATE import_chunks SET manifest_id = $2 WHERE id = $1', [priorChunk, manifestId]);
+      const created = await controller.create({ provider: 'eodhd', market_scope: 'main',
+        data_classes: ['dividends'], mode: 'incremental', from_date: '2025-01-01', to_date: '2026-12-31' });
+      const windows = await pool.query(`SELECT data_class, to_char(from_date, 'YYYY-MM-DD') AS start,
+        to_char(to_date, 'YYYY-MM-DD') AS finish FROM import_chunks WHERE job_id = $1`, [created.data.id]);
+      assert.deepEqual(windows.rows, [{ data_class: 'dividends', start: '2026-01-01', finish: '2026-12-31' }]);
+      assert.equal((await controller.latest()).data, null, 'EOD UI must not show an action job as a price import');
+      await assert.rejects(() => controller.create({ provider: 'eodhd', market_scope: 'main',
+        data_classes: ['dividends', 'splits'], mode: 'backfill', from_date: '2025-01-01',
+        to_date: '2025-12-31' }), (error: unknown) => (error as { status?: number }).status === 400);
+    } finally { await close(); }
   });
 
 test('one-year incremental planning keeps manifest-backed monthly history and only batches missing dates',

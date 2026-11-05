@@ -4,7 +4,7 @@ Private, local platform for researching GPW market indicators and validating inv
 
 The accepted stack is Angular, NestJS, a separate TypeScript calculation/import worker, PostgreSQL and local Docker Compose. See the [technology decision](.ai/specs/research/decisions/2026-11-04-platform-technology.md).
 
-The local shell, source catalog, resumable EOD import and EOD coverage view are available. The Data page reports an empty or unavailable source honestly and keeps provider symbol identities separate. The import stores original responses and source-keyed, append-only EOD revisions; full market-history completeness, snapshots, indicators and backtests remain separate backlog work. The [GPW history specification](.ai/specs/2026-11-04-local-gpw-history-with-coverage.md), [product brief](.ai/specs/product-brief.md) and [App Spec](.ai/specs/2026-11-04-app-spec-lesine.md) hold the product rules.
+The local shell, source catalog, resumable EOD import and EOD coverage view are available. The Data page reports an empty or unavailable source honestly and keeps provider symbol identities separate. The import stores original responses and source-keyed, append-only EOD revisions. Dividend and split import uses the same job machinery; identity links, snapshots, indicators and backtests remain separate backlog work. The [GPW history specification](.ai/specs/2026-11-04-local-gpw-history-with-coverage.md), [product brief](.ai/specs/product-brief.md) and [App Spec](.ai/specs/2026-11-04-app-spec-lesine.md) hold the product rules.
 
 ## Run locally
 
@@ -43,6 +43,12 @@ docker compose exec worker node apps/worker/dist/identities-cli.js identities im
 ```
 
 The import rejects unknown source IDs, overlapping periods and unsafe input files. It retains a checksummed private copy and switches the active batch atomically. Repeating the active file is idempotent; importing a corrected or earlier file creates a new batch while older batches remain available. `GET /api/instruments/{id}/identities` and paginated `GET /api/identities/unresolved` expose the active owner-attested map without changing EOD observations. The evidence reference is an owner assertion, not independently verified provider data. The archive backup includes every retained identity file.
+
+## Import dividends and splits
+
+`POST /api/import-jobs` accepts one `data_classes` value per job: `daily_bars`, `dividends` or `splits`. The action classes use EODHD's per-symbol JSON endpoints. Submit explicit `from_date` and `to_date` values; the existing local-only session and CSRF rules apply. A job requests each missing source-symbol/date window once, including windows that previously returned an empty array; `mode: "backfill"` deliberately rechecks the requested window for corrections or withdrawals. Each dividend and split request costs one unit of the same `LESINE_EODHD_DAILY_BUDGET`. For roughly 1,000 source identities, importing both classes from an empty archive therefore needs roughly 2,000 calls; set the budget according to the account's actual allowance or let the worker pause and resume across days. The current `/data` import status and coverage report remain EOD-only; the action display is separate follow-up work.
+
+The archive stores a dividend's historical `unadjustedValue` separately from EODHD's `value`, which may have been restated for later splits. It stores a split's original ratio. An identical recheck reuses the retained revision; a changed or withdrawn event appends a new revision and keeps the old one. Same-day events without stable source IDs are flagged ambiguous. `first_seen_at` is the first **local** import time, not proof of publication on an earlier trading day. Do not treat these action records as verified point-in-time inputs until a snapshot policy can establish or label their historical availability.
 
 ## Back up and restore the archive
 

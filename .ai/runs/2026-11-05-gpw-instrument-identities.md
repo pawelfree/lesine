@@ -34,3 +34,8 @@ Remaining: cross-order test, re-review and final PR update.
 Verification: both migration orders created the FK; identity integration and workspace builds passed.
 Decision: implementation is done, while independent risk-high review and QA still gate merge.
 Remaining: independent reviewer and QA handoff.
+
+2026-11-05 — Merge commit incorporates the current main, including corporate-action PR #27, and resolves the two documentation conflicts.
+Decision: preserve both feature descriptions and compatibility notes; no identity or action behavior was changed during conflict resolution.
+Verification: Node 24.15 build, four focused PostgreSQL tests, and isolated Compose health/API/migration smoke passed; test infrastructure was removed.
+Remaining: independent risk-high review and QA before merging PR #28.
