@@ -6,7 +6,7 @@ import type { Pool } from 'pg';
 
 type FileRef = { relative_path: string; sha256: string };
 type Bundle = { version: 1; database_sha256: string; files: FileRef[] };
-const filePattern = /^(import|catalog)\/([a-f0-9]{64})\.json$/;
+const filePattern = /^(import|catalog|identity)\/([a-f0-9]{64})\.json$/;
 const hashPattern = /^[a-f0-9]{64}$/;
 export const responseRoot = (): string => resolve(process.env.LESINE_RESPONSE_DIR ?? '/data/provider-responses');
 async function hashFile(path: string): Promise<string> {
@@ -56,7 +56,13 @@ export async function referencedFiles(pool: Pool): Promise<FileRef[]> {
      FROM (SELECT active_sha256 AS sha256 FROM catalog_refresh_jobs WHERE active_sha256 IS NOT NULL
        UNION SELECT delisted_sha256 FROM catalog_refresh_jobs WHERE delisted_sha256 IS NOT NULL) refs`,
   )).rows : [];
-  const all = [...manifested, ...legacy.rows, ...catalog.rows, ...staged];
+  const hasIdentityBatches = await pool.query<{ present: boolean }>(
+    "SELECT to_regclass('public.identity_batches') IS NOT NULL AS present",
+  );
+  const identities = hasIdentityBatches.rows[0].present ? (await pool.query<FileRef>(
+    'SELECT relative_path, sha256 FROM identity_batches',
+  )).rows : [];
+  const all = [...manifested, ...legacy.rows, ...catalog.rows, ...staged, ...identities];
   for (const ref of all) checkedPath(responseRoot(), ref);
   return [...new Map(all.map((ref) => [ref.relative_path, ref])).values()]
     .sort((a, b) => a.relative_path.localeCompare(b.relative_path));

@@ -27,6 +27,23 @@ The worker checkpoints each successful request as one chunk. A longer chunk can 
 
 The **Zakres notowań EOD** section on `/data` reads only local PostgreSQL evidence through `GET /api/coverage`; refreshing it never calls EODHD or spends source quota. It shows each retained source identity, acquired session range, unfinished import-request intervals and archived empty responses, with market, listing and status filters. Calendar dates between returned bars are not treated as gaps, and a one-year Free sample is not called a complete GPW archive. The report timestamp records calculation time, while **Ostatnie zapisane EOD** records the last committed acquisition. A source failure leaves old acquired rows readable with the import failure visible. If the API is offline, the browser can show only its last saved first page, clearly marked as cached with the saved filter scope; this display cache is not research data. A local-access denial clears it.
 
+## Owner-attested instrument identities
+
+Historical source IDs remain separate until the owner supplies dated, documented links. Place a UTF-8 JSON map in the private `identity-input/` directory (or set `LESINE_IDENTITY_INPUT_HOST_DIR` to another private directory before starting Compose). Do not commit this file. Each source ID comes from `GET /api/catalog`; the stable instrument key is chosen by the owner and is not inferred from the ticker:
+
+```json
+{"schema_version":1,"links":[{"source_symbol_id":"<64-character source ID>","instrument_key":"issuer-001","valid_from":"2024-01-01","valid_to_exclusive":null,"evidence":{"source":"owner-document","ref":"document/page","observed_at":"2025-01-01"}}]}
+```
+
+Validate without writes, then publish the complete map:
+
+```sh
+docker compose exec worker node apps/worker/dist/identities-cli.js identities validate /data/identity-input/map.json
+docker compose exec worker node apps/worker/dist/identities-cli.js identities import /data/identity-input/map.json
+```
+
+The import rejects unknown source IDs, overlapping periods and unsafe input files. It retains a checksummed private copy and switches the active batch atomically. Repeating the active file is idempotent; importing a corrected or earlier file creates a new batch while older batches remain available. `GET /api/instruments/{id}/identities` and paginated `GET /api/identities/unresolved` expose the active owner-attested map without changing EOD observations. The evidence reference is an owner assertion, not independently verified provider data. The archive backup includes every retained identity file.
+
 ## Back up and restore the archive
 
 Take a backup **before each migration** and after valuable imports. The command stops API and worker writes, dumps PostgreSQL, verifies every referenced provider-response file, and creates one versioned directory with `database.dump`, `bundle.json` and `responses/`. On a database already carrying manifests it restarts the services. When backing up a pre-manifest database, it leaves API and worker stopped so the new worker cannot process jobs before the API applies migration 004; inspect the bundle, then start the upgraded stack with `docker compose up --build --detach --wait`. Choose an absolute path outside the repository; the bundle contains source data and should remain private.
