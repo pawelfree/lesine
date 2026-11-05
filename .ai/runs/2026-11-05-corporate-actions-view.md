@@ -2,7 +2,7 @@
 
 Goals: Implement the corporate-actions view and API without changing EOD coverage; archive the completed specification.
 Specification: [2026-11-05-corporate-actions-view.md](../specs/implemented/2026-11-05-corporate-actions-view.md)
-Status: in-progress
+Status: done
 
 2026-11-05 — Add the phased execution plan before implementation.
 Decision: one implementation PR for this spec, separate from design PR #30; issue #7 remains open for its other two specs.
@@ -41,3 +41,8 @@ Remaining: full gate, final review, documentation, and spec archival.
 Pitfall: event keys can coincide across instruments; the API now requires `source_symbol_id` and UI caches histories per instrument.
 Verification: isolated PostgreSQL regression, full build, Angular tests and rebuilt Compose browser smoke pass.
 Remaining: final PR review, publication and temporary environment cleanup; issue #7 retains two other views.
+
+2026-11-05 — Complete the implementation plan after full validation and PR review.
+Decision: GitHub rejected formal approval of the author's own PR; the complete review was posted as a comment review.
+Verification: full build, tests, isolated PostgreSQL regression and Chromium screenshot pass; no CI workflow appeared.
+Remaining: human QA/merge of PR #31 and the other two issue #7 views; test containers are being removed.

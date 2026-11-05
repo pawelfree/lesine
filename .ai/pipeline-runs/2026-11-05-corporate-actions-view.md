@@ -1,6 +1,6 @@
 # Corporate actions view implementation
 
-Status: in-progress
+Status: complete
 Source doc: .ai/specs/implemented/2026-11-05-corporate-actions-view.md
 Spec PR: #30
 
@@ -40,4 +40,4 @@ An ex-date is not publication evidence. Reads must validate manifest hashes with
 ### Phase 2: UI and completion
 
 - [x] 2.1 Add the `/data` section with filters, history, loading/empty/error states, and accessible controls; verify it in the browser. — 16af982
-- [ ] 2.2 Move the completed spec to `implemented/`, fix references, run the full gate, and review the final diff.
+- [x] 2.2 Move the completed spec to `implemented/`, fix references, run the full gate, and review the final diff. — 657f983
