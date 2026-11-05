@@ -1,7 +1,7 @@
 # EODHD quota-efficient import batches
 
 Goal: Import a fresh one-year EOD range with one bounded provider request per source identity while preserving durable archive and quota behavior.
-Source doc: .ai/specs/2026-11-05-eodhd-efficient-import-batches.md
+Source doc: .ai/specs/implemented/2026-11-05-eodhd-efficient-import-batches.md
 Issue: #15
 
 ## Scope

@@ -1,7 +1,7 @@
 # Quota-efficient EODHD import specification — issue #15
 
 Goals: Write and publish a focused specification for quota-efficient EODHD import batches without implementing the importer.
-Spec: [Quota-efficient EODHD import batches](../specs/2026-11-05-eodhd-efficient-import-batches.md)
+Spec: [Quota-efficient EODHD import batches](../specs/implemented/2026-11-05-eodhd-efficient-import-batches.md)
 Status: done
 
 ## Commit log
