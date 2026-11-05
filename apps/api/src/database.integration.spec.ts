@@ -19,7 +19,8 @@ test('forward-only migrations initialize an empty database and do not rerun afte
         try {
           await database.onApplicationBootstrap();
           const versions = await database.pool.query('SELECT version FROM schema_migrations ORDER BY version');
-          assert.deepEqual(versions.rows.map((row) => row.version), ['001_source_inventory', '002_source_depth_sample', '003_import_jobs']);
+          assert.deepEqual(versions.rows.map((row) => row.version),
+            ['001_source_inventory', '002_source_depth_sample', '003_import_jobs', '004_immutable_eod_archive']);
           const tables = await database.pool.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.source_depth_samples') AS samples");
           assert.equal(tables.rows[0].symbols, 'source_symbols');
           assert.equal(tables.rows[0].samples, 'source_depth_samples');
@@ -28,6 +29,11 @@ test('forward-only migrations initialize an empty database and do not rerun afte
       // Roll back this additive migration in the disposable database and preserve older tables.
       const rollback = new Pool();
       try {
+        await rollback.query('ALTER TABLE import_chunks DROP COLUMN manifest_id');
+        await rollback.query('DROP TABLE raw_file_manifest_revisions');
+        await rollback.query('DROP TABLE daily_bar_revisions');
+        await rollback.query('DROP TABLE raw_file_manifests');
+        await rollback.query('DROP FUNCTION forbid_archive_row_change()');
         await rollback.query('DROP TABLE import_chunks');
         await rollback.query('DROP TABLE import_jobs');
         const tables = await rollback.query("SELECT to_regclass('public.source_symbols') AS symbols, to_regclass('public.import_jobs') AS jobs");
