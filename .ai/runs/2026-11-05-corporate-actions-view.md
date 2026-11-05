@@ -31,3 +31,8 @@ Remaining: UI, full gate, review, and moving the spec.
 Decision: keep the screen read-only; revisions and retained rows remain visible when the action import is quota-paused.
 Verification: 16 Angular tests and the targeted PostgreSQL action API test pass on Node 24.
 Remaining: browser smoke, full gate, review, documentation, and spec archival.
+
+2026-11-05 — Mark UI step 2.1 complete after a Compose and browser smoke test.
+Verification: a retained dividend, its withdrawal and older revision render; symbol filtering shows the empty state.
+Pitfall: the browser extension could not reach localhost, so the configured agent-browser CLI captured the view.
+Remaining: full gate, final review, documentation, and spec archival.
