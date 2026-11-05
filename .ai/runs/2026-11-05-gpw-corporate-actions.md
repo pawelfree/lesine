@@ -33,3 +33,8 @@ Remaining: action reader, documentation, full gate and review.
 Decision: a cutoff selects the newest retained revision known to the local archive by that time.
 Verification: API reader and worker import integration tests pass against isolated PostgreSQL.
 Remaining: documentation, full build/smoke gate and PR review.
+
+2026-11-05 — Mark correction/read step 2.1 complete at 923dbad.
+Decision: retain tombstones and earlier values; the reader selects by local knowledge cutoff.
+Verification: action correction, withdrawal, immutability and reader tests passed.
+Remaining: documentation, full build/smoke gate and PR review.
