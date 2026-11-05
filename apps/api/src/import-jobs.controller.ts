@@ -37,7 +37,10 @@ export class ImportJobsController {
     const client = await this.database.pool.connect();
     try {
       await client.query('BEGIN');
-      const source = await client.query("SELECT 1 FROM source_symbols WHERE provider = 'eodhd' LIMIT 1");
+      const source = await client.query(`SELECT 1 FROM source_symbols s WHERE s.provider = 'eodhd'
+        AND (NOT EXISTS (SELECT 1 FROM catalog_head WHERE provider = 'eodhd') OR EXISTS (
+          SELECT 1 FROM catalog_head h JOIN catalog_refresh_members m ON m.job_id = h.job_id
+          WHERE h.provider = 'eodhd' AND m.source_symbol_id = s.id)) LIMIT 1`);
       if (!source.rowCount) { await client.query('ROLLBACK'); throw error('source_unavailable', 'Najpierw pobierz katalog źródła.', 503); }
       const job = await client.query<{ started_at: Date }>(
         `INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date, to_date, scope_hash, mode)
@@ -52,6 +55,9 @@ export class ImportJobsController {
            FROM source_symbols s
            CROSS JOIN generate_series($3::date, $4::date, interval '1 day') AS d(day)
            WHERE s.provider = 'eodhd' AND ($2 = 'all' OR s.market_segment = $2)
+             AND (NOT EXISTS (SELECT 1 FROM catalog_head WHERE provider = 'eodhd') OR EXISTS (
+               SELECT 1 FROM catalog_head h JOIN catalog_refresh_members m ON m.job_id = h.job_id
+               WHERE h.provider = 'eodhd' AND m.source_symbol_id = s.id))
              AND ($5 = 'backfill' OR NOT EXISTS (
                SELECT 1 FROM import_chunks prior JOIN import_jobs j ON j.id = prior.job_id
                WHERE j.provider = 'eodhd' AND prior.resource_key = s.id AND prior.status = 'done'

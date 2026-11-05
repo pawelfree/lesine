@@ -15,7 +15,7 @@ async function isolatedPlannerPool(): Promise<{ pool: Pool; close: () => Promise
   const pool = new Pool({ database: name });
   try {
     for (const migration of ['001_source_inventory', '002_source_depth_sample',
-      '003_import_jobs', '004_immutable_eod_archive']) {
+      '003_import_jobs', '004_immutable_eod_archive', '005_catalog_refresh']) {
       await pool.query(await readFile(resolve('db/migrations', `${migration}.sql`), 'utf8'));
     }
   } catch (error) {

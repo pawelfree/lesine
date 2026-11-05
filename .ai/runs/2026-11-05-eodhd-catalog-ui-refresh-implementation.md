@@ -19,3 +19,7 @@ Remaining: implement worker, API, UI and end-to-end checks.
 2026-11-05 — Implement durable catalog-only worker jobs, two-list staging, budget/lease handling, atomic publication and guarded CLI probe.
 Decision: require distinct active/delisted codes in one published pair; retain old identities and use current membership for depth samples.
 Verification: isolated Docker worker integration suites passed (3 tests). Remaining: API, UI and full smoke/review.
+
+2026-11-05 — Add catalog refresh API, versioned current-list reads and current-membership EOD import planning.
+Decision: server-side confirmation and pointer publication share a transaction lock; stale list versions require a fresh decision.
+Verification: isolated API database integration passed (3 tests) and TypeScript compiled. Remaining: UI, full smoke and review.
