@@ -138,7 +138,9 @@ export class DataPage implements OnDestroy {
   private cursor: string | null = null;
   private requestSequence = 0;
   private catalogTimer: ReturnType<typeof setInterval> | null = null;
+  private catalogTimerInterval: number | null = null;
   private lastCatalogJobStatus: string | null = null;
+  private catalogJobRequestSequence = 0;
 
   statusLabel(status: string): string {
     return ({ available: 'dostępne', unavailable: 'niedostępne', quota_wait: 'oczekiwanie na limit', empty: 'brak rekordów' } as Record<string, string>)[status] ?? 'nieznany';
@@ -166,10 +168,12 @@ export class DataPage implements OnDestroy {
   }
 
   async refreshCatalogJob(): Promise<void> {
+    const sequence = ++this.catalogJobRequestSequence;
     try {
       const response = await fetch('/api/catalog-refreshes/latest');
       if (!response.ok) throw new Error('catalog_job_unavailable');
       const next = ((await response.json()) as { data: CatalogJob | null }).data;
+      if (sequence !== this.catalogJobRequestSequence) return;
       this.catalogJob.set(next);
       this.catalogError.set(false);
       if (next?.status === 'done' && this.lastCatalogJobStatus && this.lastCatalogJobStatus !== 'done') {
@@ -177,10 +181,14 @@ export class DataPage implements OnDestroy {
         await this.load();
       }
       this.lastCatalogJobStatus = next?.status ?? null;
-      if (next && ['queued', 'running'].includes(next.status)) {
-        if (!this.catalogTimer) this.catalogTimer = setInterval(() => void this.refreshCatalogJob(), 5000);
-      } else if (this.catalogTimer) { clearInterval(this.catalogTimer); this.catalogTimer = null; }
-    } catch { this.catalogError.set(true); }
+      const interval = next?.status === 'quota_wait' ? 60_000 :
+        next && ['queued', 'running'].includes(next.status) ? 5_000 : null;
+      if (interval !== this.catalogTimerInterval) {
+        if (this.catalogTimer) clearInterval(this.catalogTimer);
+        this.catalogTimer = interval ? setInterval(() => void this.refreshCatalogJob(), interval) : null;
+        this.catalogTimerInterval = interval;
+      }
+    } catch { if (sequence === this.catalogJobRequestSequence) this.catalogError.set(true); }
   }
 
   startCatalogRefresh(): void {

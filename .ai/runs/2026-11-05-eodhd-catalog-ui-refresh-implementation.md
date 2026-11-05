@@ -43,3 +43,7 @@ Verification: full API suite (8) and focused worker archive/catalog suites (3) p
 2026-11-05 — Polish the confirmation dialog after inspecting the live browser screenshot.
 Decision: use the existing page palette and grammatically correct ticker counts in Polish.
 Verification: Angular build and all 6 UI tests passed. Remaining: publish screenshot evidence, final review and cleanup.
+
+2026-11-05 — Keep the catalog status live across overnight quota waits and ignore older overlapping poll responses.
+Decision: poll queued/running every 5 seconds and quota-wait every minute, then reload the list when a completed job appears.
+Verification: Angular suite passed (7 tests); screenshots were attached to PR #20. Remaining: final gate, review, PR handoff and cleanup.

@@ -126,4 +126,26 @@ describe('App', () => {
       fixture.destroy();
     } finally { globalThis.fetch = originalFetch; }
   });
+
+  it('keeps the newest catalog job status when an older poll finishes later', async () => {
+    const originalFetch = globalThis.fetch;
+    const pending: ((value: Response) => void)[] = [];
+    globalThis.fetch = async (input) => String(input) === '/api/catalog-refreshes/latest'
+      ? new Promise<Response>((resolve) => pending.push(resolve))
+      : new Response(JSON.stringify({ data: { status: 'empty', count: 0, rows: [], sample: [],
+          depth_sample: [], current_catalog_id: null, catalog_origin: null }, page: { next_cursor: null } }));
+    try {
+      const page = new DataPage();
+      const newer = page.refreshCatalogJob();
+      const result = (status: string) => new Response(JSON.stringify({ data: { id: 'job', status,
+        active_saved: false, delisted_saved: false, error_code: null, retry_after_utc: null,
+        updated_at: '2026-11-05T09:00:00Z' } }));
+      pending[1](result('done'));
+      await newer;
+      pending[0](result('queued'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(page.catalogJob()?.status).toBe('done');
+      page.ngOnDestroy();
+    } finally { globalThis.fetch = originalFetch; }
+  });
 });
