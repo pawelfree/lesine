@@ -124,6 +124,23 @@ test('action planner skips manifest-backed empty windows and keeps EOD status se
         to_char(to_date, 'YYYY-MM-DD') AS finish FROM import_chunks WHERE job_id = $1`, [created.data.id]);
       assert.deepEqual(windows.rows, [{ data_class: 'dividends', start: '2026-01-01', finish: '2026-12-31' }]);
       assert.equal((await controller.latest()).data, null, 'EOD UI must not show an action job as a price import');
+      assert.equal((await controller.latest({ data_class: 'dividends' })).data?.id, created.data.id);
+      assert.equal((await controller.latest({ data_class: 'splits' })).data, null);
+      const splitJob = randomUUID();
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode, status, error_code, retry_after_utc)
+        VALUES ($1, 'eodhd', 'main', ARRAY['splits'], '2026-01-01', '2026-12-31', $2,
+          'incremental', 'quota_wait', 'daily_budget_reached', now() + interval '1 day')`,
+      [splitJob, randomUUID()]);
+      const splitStatus = (await controller.latest({ data_class: 'splits' })).data;
+      assert.equal(splitStatus?.id, splitJob);
+      assert.equal(splitStatus?.error_code, 'daily_budget_reached');
+      assert.ok(splitStatus?.retry_after_utc);
+      assert.equal((await controller.latest()).data, null);
+      await assert.rejects(() => controller.latest({ data_class: 'unknown' }),
+        (cause: unknown) => (cause as { status?: number }).status === 400);
+      await assert.rejects(() => controller.latest({ other: 'splits' } as { data_class?: unknown }),
+        (cause: unknown) => (cause as { status?: number }).status === 400);
       await assert.rejects(() => controller.create({ provider: 'eodhd', market_scope: 'main',
         data_classes: ['dividends', 'splits'], mode: 'backfill', from_date: '2025-01-01',
         to_date: '2025-12-31' }), (error: unknown) => (error as { status?: number }).status === 400);

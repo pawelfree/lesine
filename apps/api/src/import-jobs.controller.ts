@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Body, Controller, Get, HttpCode, HttpException, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpException, Param, Post, Query } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import { Database } from './database.js';
 
@@ -153,13 +153,17 @@ export class ImportJobsController {
   }
 
   @Get()
-  async latest(): Promise<{ data: Record<string, unknown> | null }> {
+  async latest(@Query() query: { data_class?: unknown } = {}): Promise<{ data: Record<string, unknown> | null }> {
+    if (Object.keys(query).some((key) => key !== 'data_class') ||
+      (query.data_class !== undefined && !['daily_bars', 'dividends', 'splits'].includes(query.data_class as string)))
+      throw error('invalid_request', 'Nieprawidłowa klasa danych.', 400);
+    const dataClass = (query.data_class ?? 'daily_bars') as DataClass;
     const result = await this.database.pool.query(
       `SELECT id, status, cursor, error_code, retry_after_utc, updated_at,
        (SELECT count(*)::int FROM import_chunks WHERE job_id = j.id) AS total_chunks,
        (SELECT count(*)::int FROM import_chunks WHERE job_id = j.id AND status = 'done') AS completed_chunks
-       FROM import_jobs j WHERE j.data_classes = ARRAY['daily_bars']::text[]
-       ORDER BY started_at DESC LIMIT 1`,
+       FROM import_jobs j WHERE j.data_classes = ARRAY[$1]::text[]
+       ORDER BY started_at DESC, id DESC LIMIT 1`, [dataClass],
     );
     return { data: result.rows[0] as Record<string, unknown> ?? null };
   }

@@ -17,3 +17,8 @@ Remaining: class-specific import status, Angular view, full validation and spec 
 2026-11-05 — Mark API read step 1.1 complete at 14fa745.
 Verification: source file corruption and cursor/filter mismatch are covered by the PostgreSQL test.
 Remaining: import status, UI, full gate, review, and moving the spec.
+
+2026-11-05 — Add class-filtered import status for dividends and splits.
+Decision: `GET /api/import-jobs` still defaults to EOD; a `data_class` filter selects one action class.
+Verification: API build and four PostgreSQL integration tests pass, including parallel classes and quota wait.
+Remaining: Angular view, full gate, review, and spec archival.
