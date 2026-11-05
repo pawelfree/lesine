@@ -1,7 +1,7 @@
 # Issue #6 specifications
 
 Goals: Define independently implementable corporate-action, instrument-identity and point-in-time snapshot capabilities for issue #6, excluding historical index constituents.
-Specifications: [actions](../specs/2026-11-05-gpw-corporate-actions.md), [identities](../specs/2026-11-05-gpw-instrument-identities.md), [snapshots](../specs/2026-11-05-point-in-time-archive-snapshots.md)
+Specifications: [actions](../specs/implemented/2026-11-05-gpw-corporate-actions.md), [identities](../specs/implemented/2026-11-05-gpw-instrument-identities.md), [snapshots](../specs/implemented/2026-11-05-point-in-time-archive-snapshots.md)
 Status: done
 
 2026-11-05 — Add three phased specifications, data-model views and alignment with the parent archive spec.

@@ -1,7 +1,7 @@
 # GPW instrument identities
 
 Status: complete
-Source doc: .ai/specs/2026-11-05-gpw-instrument-identities.md
+Source doc: .ai/specs/implemented/2026-11-05-gpw-instrument-identities.md
 Goal: Publish owner-attested, dated instrument links from a validated local evidence file while preserving prior batches.
 
 ## Scope

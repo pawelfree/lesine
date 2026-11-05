@@ -16,7 +16,7 @@ Umożliwić właścicielowi ręczne utworzenie ograniczonej migawki dla wskazane
 
 Użytkownik tworzy żądanie w `/data`; NestJS zapisuje je w nowej kolejce `snapshot_requests`, a istniejący worker odbiera je w swoim cyklu i wywołuje dotychczasowe `createSnapshot`. Oddzielenie żądania od operacji chroni interfejs przed długim przetwarzaniem i nie tworzy drugiej implementacji wyboru rewizji. Worker zapisuje wynik lub kod błędu, a UI odczytuje status. Odczyt metadanych i porównania działa w API na tabelach migawek; weryfikacja plików i odczyt zawartości powinny korzystać z jednego współdzielonego modułu archiwum wyodrębnionego z `apps/worker/src/snapshots.ts`, zamiast kopiowania polityki wyboru danych. Worker i API nie wywołują EODHD przy tworzeniu/odczycie migawki.
 
-W istniejącej [specyfikacji archiwum](2026-11-05-point-in-time-archive-snapshots.md) publiczny endpoint tworzenia odłożono do późniejszej funkcji. Właściciel zdecydował teraz, że ręczne tworzenie jest częścią #7; ten dokument jest właścicielem nowego punktu wejścia, bez zmiany semantyki zapisanych migawek.
+W istniejącej [specyfikacji archiwum](implemented/2026-11-05-point-in-time-archive-snapshots.md) publiczny endpoint tworzenia odłożono do późniejszej funkcji. Właściciel zdecydował teraz, że ręczne tworzenie jest częścią #7; ten dokument jest właścicielem nowego punktu wejścia, bez zmiany semantyki zapisanych migawek.
 
 ## 📝 Data Model
 

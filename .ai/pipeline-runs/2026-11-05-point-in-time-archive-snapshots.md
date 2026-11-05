@@ -1,7 +1,7 @@
 # Point-in-time archive snapshots
 
 Status: complete
-Source doc: .ai/specs/2026-11-05-point-in-time-archive-snapshots.md
+Source doc: .ai/specs/implemented/2026-11-05-point-in-time-archive-snapshots.md
 Goal: Persist immutable, provenance-checked revision references for reproducible historical research.
 
 ## Scope

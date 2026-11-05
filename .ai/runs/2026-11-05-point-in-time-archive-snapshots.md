@@ -1,7 +1,7 @@
 # Point-in-time archive snapshots
 
 Goals: Implement immutable point-in-time archive snapshots and open a reviewed implementation PR.
-Specification: [2026-11-05-point-in-time-archive-snapshots.md](../specs/2026-11-05-point-in-time-archive-snapshots.md)
+Specification: [2026-11-05-point-in-time-archive-snapshots.md](../specs/implemented/2026-11-05-point-in-time-archive-snapshots.md)
 Status: done
 
 2026-11-05 — Commit creates the execution plan before snapshot code.

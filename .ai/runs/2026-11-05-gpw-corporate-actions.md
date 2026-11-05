@@ -1,7 +1,7 @@
 # GPW corporate actions import
 
 Goals: Implement quota-aware EODHD dividend and split import with immutable source-backed revisions, retaining existing EOD behavior.
-Specification: [2026-11-05-gpw-corporate-actions.md](../specs/2026-11-05-gpw-corporate-actions.md) (design PR #26)
+Specification: [2026-11-05-gpw-corporate-actions.md](../specs/implemented/2026-11-05-gpw-corporate-actions.md) (design PR #26)
 Status: done
 
 2026-11-05 — Add the phased implementation plan and open an isolated implementation PR.

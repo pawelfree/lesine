@@ -1,7 +1,7 @@
 # GPW corporate actions
 
 Status: complete
-Source doc: .ai/specs/2026-11-05-gpw-corporate-actions.md
+Source doc: .ai/specs/implemented/2026-11-05-gpw-corporate-actions.md
 Issue: #6
 Spec PR: #26
 

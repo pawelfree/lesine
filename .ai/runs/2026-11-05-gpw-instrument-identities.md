@@ -1,7 +1,7 @@
 # GPW instrument identities
 
 Goals: Implement the dated, owner-attested identity map and open a reviewed implementation PR.
-Specification: [2026-11-05-gpw-instrument-identities.md](../specs/2026-11-05-gpw-instrument-identities.md)
+Specification: [2026-11-05-gpw-instrument-identities.md](../specs/implemented/2026-11-05-gpw-instrument-identities.md)
 Status: done
 
 2026-11-05 — Commit adds the resumable implementation plan before runtime changes.
