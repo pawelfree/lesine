@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnDestroy, ViewChild, signal } from '@angular/core';
 import { CoverageSection } from './coverage';
+import { CorporateActionsSection } from './corporate-actions';
 
 type CatalogRow = {
   id: string;
@@ -20,7 +21,7 @@ type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_
 
 @Component({
   selector: 'app-data',
-  imports: [CoverageSection],
+  imports: [CoverageSection, CorporateActionsSection],
   template: `
     <section class="data-page">
       <p class="eyebrow">LOKALNE DANE RYNKOWE</p>
@@ -120,6 +121,7 @@ type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_
         </section>
       }
       <app-coverage [jobStatus]="job()?.status ?? null" [jobUpdatedAt]="job()?.updated_at ?? null" />
+      <app-corporate-actions />
     </section>
   `,
 })
