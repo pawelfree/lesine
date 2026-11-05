@@ -132,7 +132,7 @@ The first release has no established design system or UI primitives in repositor
 
 ## 📝 Acceptance scenarios and traceability
 
-The following table is the contract for WF1/US-1.1–1.3 and the App Spec Phase 1 criterion. The report describes retained source identities and archived observations; an incomplete source inventory never becomes a claim about all GPW listings. The product-owner decision to remove expectation-based coverage is recorded in [the removal spec](2026-11-05-remove-expected-coverage.md).
+The following table is the contract for WF1/US-1.1–1.3 and the App Spec Phase 1 criterion. The report describes retained source identities and archived observations; an incomplete source inventory never becomes a claim about all GPW listings. The product-owner decision to remove expectation-based coverage is recorded in [the removal spec](implemented/2026-11-05-remove-expected-coverage.md).
 
 | Requirement | Criterion | Increment / steps | Test oracle or observable behavior |
 |---|---|---|---|

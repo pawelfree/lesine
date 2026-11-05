@@ -1,8 +1,8 @@
 # Remove expected coverage from Lesine
 
 Goals: Remove expected and provider-availability coverage fields and inferred calendar-interval warnings from active requirements, API, UI, schema and tests; preserve acquired data and import behavior.
-Specification: [2026-11-05-remove-expected-coverage.md](../specs/2026-11-05-remove-expected-coverage.md)
-Status: in-progress
+Specification: [2026-11-05-remove-expected-coverage.md](../specs/implemented/2026-11-05-remove-expected-coverage.md)
+Status: done
 
 2026-11-05 — Remove expectation-scope fields from active specs, API, UI and tests; add forward-only migration 007 without touching archived EOD bars.
 Decision: retain the unrelated optimistic-concurrency `expected_catalog_id` and old immutable report generations; a revision bump makes the new report current.
@@ -23,3 +23,7 @@ Remaining: independent review and QA, then merge and deploy after a coordinated 
 Decision: keep the forward-only migration and documented backup/restore rollback; verify existing bars and immutable reports survive upgrade.
 Verification: exact Node 24 build, npm tests, six PostgreSQL integration tests and isolated Compose smoke passed; temporary resources removed.
 Remaining: GitHub review and visual QA, then merge and deploy after a coordinated backup.
+2026-11-05 — Archive the implemented specification after PR #25 merged and fix its repository links.
+Decision: implementation is complete; deploying migration 007 to the persistent stack remains a separate operational step requiring a coordinated backup.
+Verification: PR #25 merged as 5698936; documentation links checked locally.
+Remaining: no implementation work in this task.
