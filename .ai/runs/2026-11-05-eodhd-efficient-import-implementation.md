@@ -15,3 +15,8 @@ Remaining: implement planner, verification, documentation, review and ready PR.
 Decision: preserve manifest-backed completed ranges and existing materialized jobs; legacy chunks remain eligible for reimport.
 Verification: API TypeScript build passed; isolated PostgreSQL integration will run in the dedicated PR environment.
 Remaining: worker request/budget verification, README, full gates and review.
+
+2026-11-05 — Mark Phase 1 planner work complete in the resumable execution plan.
+Decision: the new batch bound is explicit in SQL; PostgreSQL behavior will be checked in the isolated integration gate.
+Verification: plan references committed implementation 5b5603a and the journal remains append-only.
+Remaining: verify worker behavior and run end-to-end gates.

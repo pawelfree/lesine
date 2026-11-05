@@ -32,7 +32,7 @@ Longer chunks widen the work repeated after a failed in-flight request; each ret
 
 ### Phase 1: Planner
 
-- [ ] 1.1 Coalesce missing dates and verify planner boundaries.
+- [x] 1.1 Coalesce missing dates and verify planner boundaries. — 5b5603a
 
 ### Phase 2: Import verification
 
