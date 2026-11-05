@@ -1,6 +1,8 @@
 import { Controller, Get, Module } from '@nestjs/common';
 import { CatalogController } from './catalog.controller.js';
 import { CatalogRefreshesController } from './catalog-refreshes.controller.js';
+import { CoverageController } from './coverage.controller.js';
+import { CoverageService } from './coverage.service.js';
 import { Database } from './database.js';
 import { ImportJobsController } from './import-jobs.controller.js';
 
@@ -15,5 +17,5 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController, CatalogController, CatalogRefreshesController, ImportJobsController], providers: [Database] })
+@Module({ controllers: [HealthController, CatalogController, CatalogRefreshesController, ImportJobsController, CoverageController], providers: [Database, CoverageService] })
 export class AppModule {}
