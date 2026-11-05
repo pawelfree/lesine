@@ -3,8 +3,8 @@ import { CoverageSection } from './coverage';
 
 const report = (rows: unknown[] = []) => ({ data: {
   report_id: 'report-1', created_at: '2026-11-05T12:00:00Z', archive_last_committed_at: '2026-11-04T18:00:00Z',
-  refresh_status: 'fresh', refresh_error_code: null, catalog_id: null, expected_scope_status: 'unknown',
-  summary: { expected: null, provider_available: null, acquired: 1, gaps: null },
+  refresh_status: 'fresh', refresh_error_code: null, catalog_id: null,
+  summary: { acquired: 1 },
   scope: { market: 'all', listing: 'all', status: 'all', source: 'eodhd', data_class: 'daily_bars' }, rows,
 }, page: { next_cursor: null } });
 
@@ -12,20 +12,23 @@ describe('CoverageSection', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => localStorage.clear());
 
-  it('shows unknown scope, acquired dates and keyboard-operable gap details', async () => {
+  it('shows acquired dates and keyboard-operable import details', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => new Response(JSON.stringify(report([{
       source_symbol_id: 'identity-1', provider_symbol: 'ABC.WAR', market_segment: 'unclassified',
       listing: 'delisted', in_current_catalog: false, source: 'eodhd', data_class: 'daily_bars',
-      expected_from: null, expected_to: null, provider_from: null, provider_to: null,
       acquired_from: '2026-01-02', acquired_to: '2026-11-04', status: 'unclassified',
-      findings: [{ from_date: null, to_date: null, reason_code: 'expected_scope_unknown', evidence_ref: null, evidence_checked_at: null }],
+      findings: [{ from_date: null, to_date: null, reason_code: 'import_request_unfinished', evidence_ref: null, evidence_checked_at: null }],
     }])));
     try {
       const fixture = TestBed.createComponent(CoverageSection);
       await fixture.whenStable(); fixture.detectChanges();
       const element = fixture.nativeElement as HTMLElement;
-      expect(element.textContent).toContain('Oczekiwany zakres rynku jest nieznany');
+      expect(element.textContent).toContain('Nie potwierdza kompletności historii GPW');
+      expect(element.textContent).not.toContain('Oczekiwane');
+      expect(element.textContent).not.toContain('Dostępne u dostawcy');
+      expect(element.textContent).not.toContain('Potwierdzone luki');
+      expect(Array.from(element.querySelectorAll('.filters option')).some((option) => option.textContent === 'Kompletny')).toBe(false);
       expect(element.textContent).toContain('2026-01-02 – 2026-11-04');
       expect(element.textContent).toContain('poza bieżącym katalogiem');
       expect(element.querySelector('details summary')?.textContent).toContain('Powody i dowody');
@@ -42,7 +45,7 @@ describe('CoverageSection', () => {
     try {
       const first = TestBed.createComponent(CoverageSection);
       await first.whenStable(); first.destroy();
-      expect(localStorage.getItem('lesine-eod-coverage-v1')).toBeTruthy();
+      expect(localStorage.getItem('lesine-eod-coverage-v3')).toBeTruthy();
       globalThis.fetch = async () => { throw new Error('offline'); };
       const second = TestBed.createComponent(CoverageSection);
       await second.whenStable(); second.detectChanges();
@@ -59,12 +62,12 @@ describe('CoverageSection', () => {
     globalThis.fetch = async () => new Response(JSON.stringify(report([{
       source_symbol_id: 'identity-1', provider_symbol: 'ABC.WAR', market_segment: 'main',
       listing: 'active', in_current_catalog: true, source: 'eodhd', data_class: 'daily_bars',
-      expected_from: null, expected_to: null, provider_from: null, provider_to: null,
       acquired_from: null, acquired_to: null, status: 'unknown', findings: [],
     }])));
     try {
       const fixture = TestBed.createComponent(CoverageSection);
       await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('details')).toBeNull();
       globalThis.fetch = async () => { throw new Error('offline'); };
       const listing = fixture.nativeElement.querySelectorAll('.filters select')[3] as HTMLSelectElement;
       listing.value = 'delisted'; listing.dispatchEvent(new Event('change'));
@@ -93,7 +96,7 @@ describe('CoverageSection', () => {
       await fixture.whenStable(); fixture.detectChanges();
       expect(fixture.componentInstance.result()?.data.report_id).toBe('report-1');
       expect(fixture.componentInstance.accessDenied()).toBe(false);
-      expect(localStorage.getItem('lesine-eod-coverage-v1')).toBeTruthy();
+      expect(localStorage.getItem('lesine-eod-coverage-v3')).toBeTruthy();
       fixture.destroy();
     } finally { globalThis.fetch = originalFetch; }
   });
@@ -108,10 +111,10 @@ describe('CoverageSection', () => {
         { version: 1, saved_at: new Date().toISOString(), response: incomplete },
         { version: 1, saved_at: 'invalid-date', response: report() },
       ]) {
-        localStorage.setItem('lesine-eod-coverage-v1', JSON.stringify(value));
+        localStorage.setItem('lesine-eod-coverage-v3', JSON.stringify(value));
         const fixture = TestBed.createComponent(CoverageSection);
         await fixture.whenStable(); fixture.detectChanges();
-        expect(localStorage.getItem('lesine-eod-coverage-v1')).toBeNull();
+        expect(localStorage.getItem('lesine-eod-coverage-v3')).toBeNull();
         expect(fixture.componentInstance.result()).toBeNull();
         fixture.destroy();
       }
@@ -120,13 +123,13 @@ describe('CoverageSection', () => {
 
   it('clears cached market content after local access is denied', async () => {
     const originalFetch = globalThis.fetch;
-    localStorage.setItem('lesine-eod-coverage-v1', JSON.stringify({ version: 1,
+    localStorage.setItem('lesine-eod-coverage-v3', JSON.stringify({ version: 1,
       saved_at: new Date().toISOString(), response: report() }));
     globalThis.fetch = async () => new Response(null, { status: 403 });
     try {
       const fixture = TestBed.createComponent(CoverageSection);
       await fixture.whenStable(); fixture.detectChanges();
-      expect(localStorage.getItem('lesine-eod-coverage-v1')).toBeNull();
+      expect(localStorage.getItem('lesine-eod-coverage-v3')).toBeNull();
       expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Raport obliczony');
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('Brak dostępu do raportu');
       fixture.destroy();

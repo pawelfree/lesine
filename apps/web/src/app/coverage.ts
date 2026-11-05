@@ -3,15 +3,14 @@ import { Component, Input, OnDestroy, signal } from '@angular/core';
 type Finding = { from_date: string | null; to_date: string | null; reason_code: string; evidence_ref: string | null; evidence_checked_at: string | null };
 type Row = { source_symbol_id: string; provider_symbol: string; market_segment: string; listing: string;
   in_current_catalog: boolean; source: string; data_class: string; status: string;
-  expected_from: string | null; expected_to: string | null; provider_from: string | null; provider_to: string | null;
   acquired_from: string | null; acquired_to: string | null; findings: Finding[] };
 type Report = { report_id: string | null; created_at: string | null; archive_last_committed_at: string | null;
   refresh_status: 'none' | 'fresh' | 'stale'; refresh_error_code: string | null; catalog_id: string | null;
-  expected_scope_status: string; summary: { expected: number | null; provider_available: number | null; acquired: number | null; gaps: number | null };
+  summary: { acquired: number | null };
   rows: Row[]; scope: { market: string; listing: string; status: string; source: string; data_class: string } };
 type ResponseBody = { data: Report; page: { next_cursor: string | null } };
 type Cached = { version: 1; saved_at: string; response: ResponseBody };
-const cacheKey = 'lesine-eod-coverage-v1';
+const cacheKey = 'lesine-eod-coverage-v3';
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -31,22 +30,22 @@ function validResponse(value: unknown): value is ResponseBody {
   if (!textOrNull(data['report_id']) || !textOrNull(data['created_at']) ||
     !textOrNull(data['archive_last_committed_at']) || !textOrNull(data['catalog_id']) ||
     !['none', 'fresh', 'stale'].includes(String(data['refresh_status'])) ||
-    !textOrNull(data['refresh_error_code']) || typeof data['expected_scope_status'] !== 'string' ||
+    !textOrNull(data['refresh_error_code']) ||
     !record(data['scope']) || !record(data['summary']) || !Array.isArray(data['rows']) ||
     data['rows'].length > 200 || !textOrNull(value['page']['next_cursor'])) return false;
   const scope = data['scope'];
   if (!['all', 'main', 'newconnect', 'unclassified'].includes(String(scope['market'])) ||
     !['all', 'active', 'delisted', 'unknown'].includes(String(scope['listing'])) ||
-    !['all', 'complete', 'partial', 'unavailable', 'unclassified', 'unknown'].includes(String(scope['status'])) ||
+    !['all', 'unavailable', 'unclassified', 'unknown'].includes(String(scope['status'])) ||
     scope['source'] !== 'eodhd' || scope['data_class'] !== 'daily_bars') return false;
   const summary = data['summary'];
-  if (!['expected', 'provider_available', 'acquired', 'gaps'].every((key) => countOrNull(summary[key]))) return false;
+  if (!countOrNull(summary['acquired'])) return false;
   return data['rows'].every((entry: unknown) => {
     if (!record(entry) || !Array.isArray(entry['findings']) || entry['findings'].length > 100 ||
       typeof entry['source_symbol_id'] !== 'string' || typeof entry['provider_symbol'] !== 'string' ||
       typeof entry['market_segment'] !== 'string' || typeof entry['listing'] !== 'string' ||
       typeof entry['in_current_catalog'] !== 'boolean' || typeof entry['status'] !== 'string') return false;
-    if (!['expected_from', 'expected_to', 'provider_from', 'provider_to', 'acquired_from', 'acquired_to']
+    if (!['acquired_from', 'acquired_to']
       .every((key) => textOrNull(entry[key]))) return false;
     return entry['findings'].every((finding: unknown) => record(finding) &&
       textOrNull(finding['from_date']) && textOrNull(finding['to_date']) &&
@@ -91,8 +90,7 @@ function validResponse(value: unknown): value is ResponseBody {
         </select></label>
         <label>Stan<select [value]="status()" (change)="changeFilter('status', $event)">
           <option value="all">Wszystkie</option><option value="unknown">Nieznany</option>
-          <option value="unclassified">Niesklasyfikowany</option><option value="partial">Częściowy</option>
-          <option value="unavailable">Niedostępny</option><option value="complete">Kompletny</option>
+          <option value="unclassified">Niesklasyfikowany</option><option value="unavailable">Niedostępny</option>
         </select></label>
       </div>
       <div class="actions"><button type="button" (click)="refresh()">Odśwież raport</button></div>
@@ -107,34 +105,28 @@ function validResponse(value: unknown): value is ResponseBody {
           @if (jobStatus === 'failed' || jobStatus === 'quota_wait' || jobStatus === 'paused') {
             <p class="notice">Import: {{ jobLabel(jobStatus) }}. Ostatnia zmiana: {{ jobUpdatedAt || 'nieznana' }}. Raport nie potwierdza aktualności danych źródła.</p>
           }
-          @if (current.data.expected_scope_status !== 'verified') { <p class="notice">Oczekiwany zakres rynku jest nieznany lub częściowy. Brak potwierdzenia pełnej historii GPW.</p> }
           <p>Generacja katalogu: {{ current.data.catalog_id || 'brak' }}. Zakres: EOD, EODHD.</p>
           <div class="summary" aria-label="Podsumowanie zakresu">
-            <div>Oczekiwane<strong>{{ count(current.data.summary.expected) }}</strong></div>
-            <div>Dostępne u dostawcy<strong>{{ count(current.data.summary.provider_available) }}</strong></div>
             <div>Zapisane obserwacje<strong>{{ count(current.data.summary.acquired) }}</strong></div>
-            <div>Potwierdzone luki<strong>{{ count(current.data.summary.gaps) }}</strong></div>
           </div>
           @if (!current.data.rows.length) { <p>Brak rekordów dla wybranych filtrów.</p> }
           @if (current.data.rows.length) {
-            <div class="table-wrap"><table><thead><tr><th scope="col">Symbol</th><th scope="col">Rynek / notowanie</th><th scope="col">Oczekiwane</th><th scope="col">Dostawca</th><th scope="col">Zapisane</th><th scope="col">Stan i dowody</th></tr></thead>
+            <div class="table-wrap"><table><thead><tr><th scope="col">Symbol</th><th scope="col">Rynek / notowanie</th><th scope="col">Zapisane</th><th scope="col">Stan i dowody</th></tr></thead>
               <tbody>@for (row of current.data.rows; track row.source_symbol_id) {
                 <tr><td>{{ row.provider_symbol }} @if (!row.in_current_catalog) { <span>(poza bieżącym katalogiem)</span> }</td>
                   <td>{{ marketLabel(row.market_segment) }} / {{ listingLabel(row.listing) }}</td>
-                  <td>{{ range(row.expected_from, row.expected_to) }}</td>
-                  <td>{{ range(row.provider_from, row.provider_to) }}</td>
                   <td>{{ range(row.acquired_from, row.acquired_to) }}</td>
-                  <td>{{ statusLabel(row.status) }}<details><summary>Powody i dowody</summary>
+                  <td>{{ statusLabel(row.status) }}@if (row.findings.length) { <details><summary>Powody i dowody</summary>
                     <ul>@for (finding of row.findings; track $index) {
                       <li>{{ reasonLabel(finding.reason_code) }} @if (finding.from_date || finding.to_date) { ({{ range(finding.from_date, finding.to_date) }}) }
                         @if (finding.evidence_ref) { — identyfikator dowodu: {{ finding.evidence_ref }} }
                         @if (finding.evidence_checked_at) { ({{ finding.evidence_checked_at }}) }
                       </li>
-                    }</ul></details></td></tr>
+                    }</ul></details> }</td></tr>
               }</tbody></table></div>
             @if (current.page.next_cursor && !cached()) { <button type="button" (click)="next()">Następna strona raportu</button> }
           }
-        } @else { <p role="status">Brak raportu EOD. Oczekiwany zakres i liczby są nieznane.</p> }
+        } @else { <p role="status">Brak raportu EOD. Nie zapisano jeszcze notowań.</p> }
       }
     </section>
   `,
@@ -161,9 +153,9 @@ export class CoverageSection implements OnDestroy {
   range(from: string | null, to: string | null): string { return from || to ? `${from || 'nieznane'} – ${to || 'nieznane'}` : 'nieznany'; }
   marketLabel(value: string): string { return ({ main: 'Rynek główny', newconnect: 'NewConnect', unclassified: 'Niesklasyfikowany' } as Record<string, string>)[value] ?? 'Nieznany'; }
   listingLabel(value: string): string { return ({ active: 'aktywne', delisted: 'wycofane', unknown: 'nieznane' } as Record<string, string>)[value] ?? 'nieznane'; }
-  statusLabel(value: string): string { return ({ unknown: 'nieznany', unclassified: 'niesklasyfikowany', partial: 'częściowy', unavailable: 'niedostępny', complete: 'kompletny' } as Record<string, string>)[value] ?? 'nieznany'; }
+  statusLabel(value: string): string { return ({ unknown: 'nieznany', unclassified: 'niesklasyfikowany', unavailable: 'niedostępny' } as Record<string, string>)[value] ?? 'nieznany'; }
   jobLabel(value: string): string { return ({ failed: 'nieudany', quota_wait: 'oczekiwanie na limit', paused: 'wstrzymany' } as Record<string, string>)[value] ?? 'nieznany'; }
-  reasonLabel(value: string): string { return ({ expected_scope_unknown: 'Oczekiwany zakres nie został potwierdzony', import_request_unfinished: 'Żądanie importu nie zostało ukończone', archive_evidence_missing: 'Brak zapisanego dowodu odpowiedzi', archived_empty_response: 'Zapisano pustą odpowiedź; sesje w tym przedziale nie są potwierdzone', unverified_date_interval: 'Przedział między obserwacjami nie został zweryfikowany' } as Record<string, string>)[value] ?? 'Nieznany powód'; }
+  reasonLabel(value: string): string { return ({ import_request_unfinished: 'Żądanie importu nie zostało ukończone', archive_evidence_missing: 'Brak zapisanego dowodu odpowiedzi', archived_empty_response: 'Zapisano pustą odpowiedź; sesje w tym przedziale nie są potwierdzone' } as Record<string, string>)[value] ?? 'Nieznany powód'; }
 
   cachedFiltersDiffer(): boolean {
     const scope = this.result()?.data.scope;

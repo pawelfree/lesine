@@ -10,7 +10,7 @@ type CatalogRow = {
   identity_evidence_ref: string;
 };
 type CatalogResponse = {
-  data: { status: string; expected_scope_status: string; rights_status: string; checked_at: string | null; current_catalog_id: string | null; catalog_origin: string | null; count: number; rows: CatalogRow[]; sample: { listing_state: string; status: string; error_code: string | null }[]; depth_sample: { listing_state: string; data_class: string; provider_symbol: string; sample_from: string; sample_to: string; earliest_observed: string | null; latest_observed: string | null; status: string }[] };
+  data: { status: string; rights_status: string; checked_at: string | null; current_catalog_id: string | null; catalog_origin: string | null; count: number; rows: CatalogRow[]; sample: { listing_state: string; status: string; error_code: string | null }[]; depth_sample: { listing_state: string; data_class: string; provider_symbol: string; sample_from: string; sample_to: string; earliest_observed: string | null; latest_observed: string | null; status: string }[] };
   page: { next_cursor: string | null };
 };
 type ImportJob = { id: string; status: string; completed_chunks: number; total_chunks: number; cursor: string | null;

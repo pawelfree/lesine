@@ -16,7 +16,7 @@ async function database(): Promise<{ pool: Pool; close: () => Promise<void> }> {
   const pool = new Pool({ database: name });
   try {
     for (const migration of ['001_source_inventory', '002_source_depth_sample', '003_import_jobs',
-      '004_immutable_eod_archive', '005_catalog_refresh', '006_eod_coverage']) {
+      '004_immutable_eod_archive', '005_catalog_refresh', '006_eod_coverage', '007_remove_expected_coverage']) {
       await pool.query(await readFile(resolve('db/migrations', `${migration}.sql`), 'utf8'));
     }
   } catch (error) {
@@ -55,10 +55,16 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
       [activeId, delistedId]);
       const first = await controller.get({}) as { data: { report_id: string; summary: { acquired: number }; rows: { source_symbol_id: string; status: string; findings: { reason_code: string }[] }[] } };
       assert.equal(first.data.summary.acquired, 0);
+      assert.equal('expected_scope_status' in first.data, false);
+      assert.equal('expected' in first.data.summary, false);
+      assert.equal('provider_available' in first.data.summary, false);
+      assert.equal('gaps' in first.data.summary, false);
       assert.equal(first.data.rows.length, 2);
+      assert.equal('expected_from' in first.data.rows[0], false);
+      assert.equal('provider_from' in first.data.rows[0], false);
       assert.deepEqual(new Set(first.data.rows.map((row) => row.source_symbol_id)), new Set([activeId, delistedId]));
       assert.equal(first.data.rows.find((row) => row.source_symbol_id === delistedId)?.status, 'unclassified');
-      assert.equal(first.data.rows[0].findings[0].reason_code, 'expected_scope_unknown');
+      assert.deepEqual(first.data.rows[0].findings, []);
 
       await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
         to_date, scope_hash, mode, status) VALUES ($1, 'eodhd', 'main', ARRAY['daily_bars'],
@@ -67,7 +73,7 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
         VALUES ($1, $2, $3, '2026-01-01', '2026-01-31')`, [chunkId, jobId, activeId]);
       const queued = await controller.get({ market: 'main' }) as { data: { report_id: string; rows: { findings: { reason_code: string }[] }[] } };
       assert.notEqual(queued.data.report_id, first.data.report_id);
-      assert.equal(queued.data.rows[0].findings[1].reason_code, 'import_request_unfinished');
+      assert.equal(queued.data.rows[0].findings[0].reason_code, 'import_request_unfinished');
       await pool.query("UPDATE import_chunks SET status = 'failed' WHERE id = $1", [chunkId]);
       const failed = await controller.get({ market: 'main' }) as { data: { report_id: string } };
       assert.notEqual(failed.data.report_id, queued.data.report_id, 'status-only changes refresh the report');
@@ -85,7 +91,7 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
       const acquired = await controller.get({ market: 'main' }) as { data: { summary: { acquired: number }; rows: { acquired_from: string; findings: { reason_code: string }[] }[] } };
       assert.equal(acquired.data.summary.acquired, 1);
       assert.equal(acquired.data.rows[0].acquired_from, '2026-01-05');
-      assert.equal(acquired.data.rows[0].findings.length, 1);
+      assert.equal(acquired.data.rows[0].findings.length, 0);
 
       await pool.query(`INSERT INTO daily_bar_revisions(id, provider, source_symbol_id, session_date,
         open, high, low, close, volume, fingerprint, first_manifest_id)
@@ -125,7 +131,7 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
     } finally { await close(); }
   });
 
-test('coverage keeps observed-date intervals and empty archived responses unverified',
+test('coverage omits calendar intervals while retaining empty archived responses',
   { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
     if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
     const { pool, close } = await database();
@@ -162,19 +168,41 @@ test('coverage keeps observed-date intervals and empty archived responses unveri
           ($5, 'eodhd', $2, '2026-01-09', 1, 2, 1, 2, 100, $6, $4)`,
       [randomUUID(), symbolId, 'c'.repeat(64), barsManifestId, randomUUID(), 'd'.repeat(64)]);
 
-      const response = await controller.get({}) as { data: { summary: { acquired: number; gaps: number | null };
+      const response = await controller.get({}) as { data: { summary: { acquired: number };
         rows: { findings: { from_date: string | null; to_date: string | null; reason_code: string;
           evidence_ref: string | null }[] }[] } };
       assert.equal(response.data.summary.acquired, 2);
-      assert.equal(response.data.summary.gaps, null);
       const findings = response.data.rows[0].findings;
-      assert.deepEqual(findings.find((finding) => finding.reason_code === 'unverified_date_interval'), {
-        from_date: '2026-01-06', to_date: '2026-01-08', reason_code: 'unverified_date_interval',
-        evidence_ref: null, evidence_checked_at: null,
-      });
+      assert.equal(findings.some((finding) => finding.reason_code === 'unverified_date_interval'), false);
       const empty = findings.find((finding) => finding.reason_code === 'archived_empty_response');
       assert.equal(empty?.from_date, '2026-01-10');
       assert.equal(empty?.to_date, '2026-01-15');
       assert.equal(empty?.evidence_ref, emptyManifestId);
+    } finally { await close(); }
+  });
+
+test('coverage hides retired findings retained in historical report rows',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await database();
+    const controller = new CoverageController({ pool } as Database, new CoverageService({ pool } as Database));
+    const symbolId = randomUUID();
+    const reportId = randomUUID();
+    try {
+      await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
+        market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
+        VALUES ($1, 'eodhd', 'OLD.WAR', 'active', 'unclassified', 'fixture', now(), now())`, [symbolId]);
+      await pool.query(`INSERT INTO eod_coverage_reports(id, input_revision, source_symbol_count)
+        SELECT $1, revision, 1 FROM eod_coverage_input_state WHERE id = 1`, [reportId]);
+      await pool.query(`INSERT INTO eod_coverage_rows(report_id, source_symbol_id, provider, provider_symbol,
+        market_segment, listing, in_current_catalog, acquired_count, status, findings)
+        VALUES ($1, $2, 'eodhd', 'OLD.WAR', 'unclassified', 'active', false, 0, 'unclassified', $3::jsonb)`,
+      [reportId, symbolId, JSON.stringify([
+        { reason_code: 'expected_scope_unknown' },
+        { reason_code: 'unverified_date_interval' },
+        { reason_code: 'archived_empty_response' },
+      ])]);
+      const response = await controller.get({}) as { data: { rows: { findings: { reason_code: string }[] }[] } };
+      assert.deepEqual(response.data.rows[0].findings.map((finding) => finding.reason_code), ['archived_empty_response']);
     } finally { await close(); }
   });

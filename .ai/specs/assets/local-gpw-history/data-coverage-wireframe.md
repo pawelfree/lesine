@@ -18,14 +18,13 @@ Last update: 2026-11-03 22:10 Europe/Warsaw
 Next retry: 2026-11-04 09:00 · Quota remaining: 12 calls
 [Start import / Resume import]  [View job details]
 
-Expected catalog: 420 entries (verified scope)
-Provider available: 390 · Acquired: 375 · Gaps: 45
+Acquired: 375 · Import requests pending or failed: 45
 Source and date ranges are evidence, not a claim of full GPW history.
 
-Market      Class             Expected        Provider        Acquired      Status
-Main        Daily bars        1991–today      1995–today      1995–today    Partial
-NewConnect  Daily bars        2007–today      Unknown         Unknown       Unknown
-Main        Index members     1991–today      Unavailable     —             Unavailable
+Market      Class             Acquired        Import state
+Main        Daily bars        1995–today      Partial
+NewConnect  Daily bars        Unknown         Pending
+Main        Index members     —               Unavailable
 
 Selected gap: NewConnect · Daily bars
 Expected range: 2007–today; source checked: EODHD WAR inventory;
@@ -44,12 +43,12 @@ The same controls stack vertically; summary cards precede a scrollable table who
 | State | Visible content | Primary action |
 |---|---|---|
 | Loading | “Wczytywanie stanu danych…” and labeled progress; no stale count presented as current | Wait; previous report may be explicitly labeled as cached |
-| First run / empty | “Brak pobranych danych”; source credential setup instructions without a token input on this page; expected scope marked unknown | Start inventory after local credential is configured |
+| First run / empty | “Brak pobranych danych”; source credential setup instructions without a token input on this page | Start inventory after local credential is configured |
 | Import queued/running | Job id, completed/failed chunks, cursor, last update and “Dane częściowe” label | Inspect progress |
 | Quota wait | Retry time and remaining budget, completed chunks preserved | Wait or inspect gaps |
 | Paused/failed | Sanitized error code, last committed chunk and reason; no token or raw provider payload | Resume |
-| Partial coverage | Expected/provider/acquired ranges separately, explicit gaps and evidence | Filter and inspect a gap |
-| Complete for verified scope | Scope and source named beside “Complete”; still show unavailable classes outside that scope | Inspect coverage |
+| Partial coverage | Acquired ranges, import problems and evidence | Filter and inspect an import problem |
+| Imported range | Source and archived date range shown without a full-history claim | Inspect archived dates |
 | Server/network error | “Nie można wczytać stanu”; previous report, if present, labeled with its timestamp | Retry |
 | Access denied | “Dostęp lokalny odrzucony”; no source details or tokens | Open the app from its local address |
 

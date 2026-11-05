@@ -21,7 +21,7 @@ export class CatalogController {
     @Query('market') market?: string,
     @Query('after') after?: string,
     @Query('catalog_id') catalogId?: string,
-  ): Promise<{ data: { status: string; expected_scope_status: 'unknown'; rights_status: 'unverified'; checked_at: string | null; current_catalog_id: string | null; catalog_origin: string | null; latest_refresh: unknown; rows: unknown[]; sample: unknown[]; depth_sample: unknown[]; count: number }; page: { next_cursor: string | null } }> {
+  ): Promise<{ data: { status: string; rights_status: 'unverified'; checked_at: string | null; current_catalog_id: string | null; catalog_origin: string | null; latest_refresh: unknown; rows: unknown[]; sample: unknown[]; depth_sample: unknown[]; count: number }; page: { next_cursor: string | null } }> {
     const validListings = new Set(['all', 'active', 'delisted', 'unknown']);
     const validMarkets = new Set(['all', 'main', 'newconnect', 'unclassified']);
     if ((listing && !validListings.has(listing)) || (market && !validMarkets.has(market)) ||
@@ -59,7 +59,7 @@ export class CatalogController {
       response_sha256: state === 'active' ? current.active_sha256 : current.delisted_sha256, error_code: null,
     })) : [];
     const rows = items.rows.slice(0, 100);
-    return { data: { status, expected_scope_status: 'unknown', rights_status: 'unverified',
+    return { data: { status, rights_status: 'unverified',
       checked_at: current?.published_at?.toISOString() ?? null, current_catalog_id: current?.job_id ?? null,
       catalog_origin: current?.origin ?? null, latest_refresh: latest.rows[0] ?? null,
       rows, sample, depth_sample: depth.rows, count: count.rows[0].count as number },
