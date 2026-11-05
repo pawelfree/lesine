@@ -52,7 +52,7 @@ export class CoverageController {
       return { data: { report_id: null, created_at: null, archive_last_committed_at: null,
         refresh_status: 'none', refresh_error_code: null, catalog_id: null, archive_watermark: null,
         scope: filters,
-        summary: { provider_available: null, acquired: null, gaps: null }, rows: [] },
+        summary: { acquired: null }, rows: [] },
       page: { next_cursor: null } };
     }
     const last = decodeCursor(query.cursor, report.id, filters);
@@ -77,8 +77,7 @@ export class CoverageController {
        FROM eod_coverage_rows WHERE ${where.join(' AND ')}
        ORDER BY market_segment, listing, provider_symbol, source_symbol_id LIMIT $${values.length}`, values,
     );
-    const visible = rows.rows.slice(0, limit).map((row) => ({ ...row,
-      provider_from: null, provider_to: null }));
+    const visible = rows.rows.slice(0, limit);
     const tail = rows.rows.length > limit ? rows.rows[limit - 1] : null;
     const next = tail ? Buffer.from(JSON.stringify({ report: report.id, filters,
       last: [tail.market_segment, tail.listing, tail.provider_symbol, tail.source_symbol_id] })).toString('base64url') : null;
@@ -86,7 +85,7 @@ export class CoverageController {
       archive_last_committed_at: report.archive_last_committed_at?.toISOString() ?? null,
       refresh_status: refreshStatus, refresh_error_code: errorCode, catalog_id: report.catalog_id,
       archive_watermark: report.input_revision,
-      scope: filters, summary: { provider_available: null, acquired: summary.rows[0].acquired, gaps: null },
+      scope: filters, summary: { acquired: summary.rows[0].acquired },
       rows: visible }, page: { next_cursor: next } };
   }
 }

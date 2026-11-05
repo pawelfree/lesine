@@ -25,7 +25,7 @@ The owner needs all available GPW Main Market and NewConnect history retained lo
 | User and surface | One local `owner`; browser Data coverage page; no portal or multi-user account. |
 | Owned entities | Instrument, InstrumentIdentity, CorporateAction, IndexMembership, DailyBar, DataSeries, Observation, DataSnapshot and CoverageReport, with typed fields/invariants in §1.4. |
 | Archive scope | Full available Main Market and NewConnect history; include later-delisted shares. First barometer consumes only a subset. |
-| Coverage rule | Never label an import complete merely because a provider returned data. Report desired, provider-available and acquired ranges/gaps. |
+| Coverage rule | Never label an archive complete merely because a provider returned data. Report acquired ranges and explicit import failures. |
 | Phase acceptance | §7 Phase 1: resumable local history, revisions and a report covering retained source identities and acquired ranges. |
 | External gate | Verify historical depth, entitlements and local retention rights. EODHD is first source to check; add/replace sources for documented gaps. |
 

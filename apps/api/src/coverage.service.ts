@@ -60,7 +60,6 @@ export class CoverageService {
            bars.first_date, bars.last_date, bars.day_count,
            CASE WHEN s.market_segment = 'unclassified' THEN 'unclassified' ELSE 'unknown' END,
            COALESCE(requests.findings, '[]'::jsonb)
-             || COALESCE(intervals.findings, '[]'::jsonb)
          FROM source_symbols s
          CROSS JOIN LATERAL (
            SELECT min(r.session_date) AS first_date, max(r.session_date) AS last_date,
@@ -85,28 +84,7 @@ export class CoverageService {
              ORDER BY c.from_date, c.id LIMIT 20) c
            JOIN import_jobs j ON j.id = c.job_id
            LEFT JOIN raw_file_manifests m ON m.id = c.manifest_id
-         ) requests
-         CROSS JOIN LATERAL (
-           SELECT jsonb_agg(jsonb_build_object(
-             'from_date', to_char(g.from_date, 'YYYY-MM-DD'),
-             'to_date', to_char(g.to_date, 'YYYY-MM-DD'),
-             'reason_code', 'unverified_date_interval',
-             'evidence_ref', NULL, 'evidence_checked_at', NULL
-           ) ORDER BY g.from_date) AS findings
-           FROM (
-             SELECT (observed.previous_date + 1)::date AS from_date,
-               (observed.session_date - 1)::date AS to_date
-             FROM (
-               SELECT dates.session_date,
-                 lag(dates.session_date) OVER (ORDER BY dates.session_date) AS previous_date
-               FROM (SELECT DISTINCT r.session_date FROM daily_bar_revisions r
-                 WHERE r.source_symbol_id = s.id) dates
-             ) observed
-             WHERE observed.previous_date IS NOT NULL
-               AND observed.session_date > observed.previous_date + 1
-             ORDER BY observed.previous_date LIMIT 20
-           ) g
-         ) intervals`,
+         ) requests`,
         [id, state.catalog_id],
       );
       const report = await this.latest(client);

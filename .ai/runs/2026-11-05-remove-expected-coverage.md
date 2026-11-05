@@ -11,3 +11,7 @@ Remaining: independent PR review and QA before merge, then deploy the migration 
 2026-11-05 — Align the tracked E02 backlog row with the owner decision and update open GitHub epic #2 and issue #7.
 Decision: retained-source accounting replaces the removed expectation denominator in future archive work.
 Remaining: PR #25 review and QA, then merge and deploy after backup.
+2026-11-05 — Remove provider-availability fields and calendar-interval findings from coverage API, UI, tests and specs in PR #25.
+Decision: keep EODHD source identity and explicit unfinished/empty import evidence; hide finding details when there are none.
+Verification: npm tests, Node 24 Docker build, isolated Compose smoke and four PostgreSQL integration tests passed; all temporary resources removed.
+Remaining: independent review and QA, then merge and deploy after a coordinated backup.

@@ -10,7 +10,7 @@ The owner can see the source catalog and import progress on `/data`, but cannot 
 |---|---|---|
 | Q1. Persist a last-good report or calculate only on request? | Persist immutable report generations, computed locally when archive evidence changes. | The accepted `/data` behavior requires a timestamped prior report after a refresh failure. |
 | Q2. Include identities outside the current catalog? | Include every retained `source_symbols` identity; mark current-catalog membership. | Historical and delisted identities must not disappear after a catalog refresh. |
-| Q3. Call absent dates gaps without trading evidence? | Label them unverified intervals or unfinished requests, not confirmed missing sessions. | A requested calendar range or empty response does not prove trading on every date. |
+| Q3. Call absent dates gaps without trading evidence? | Do not infer calendar gaps between returned observations; report unfinished requests. | A requested calendar range or empty response does not prove trading on every date. |
 
 ## 📝 Problem Statement
 
@@ -41,7 +41,7 @@ Each `GET /api/coverage` computes a deterministic fingerprint of **all report in
 
 ## 📝 Data Model
 
-Add append-only `eod_coverage_reports` and `eod_coverage_rows` via a forward-only PostgreSQL migration. A report stores `id`, `created_at` (calculation time), nullable `archive_last_committed_at` (last manifest-backed EOD acquisition), nullable `catalog_id`, archive watermark and `calculation_version`. A row stores report id, `source_symbol_id`, provider, symbol, market segment (`main|newconnect|unclassified`), listing (`active|delisted|unknown`), `in_current_catalog`, `data_class` fixed to `daily_bars`, nullable provider/acquired start/end dates, status and bounded interval findings with reason/evidence codes. Unique `(report_id, source_symbol_id, data_class)` prevents duplicates. Source identity is not a canonical instrument id.
+Add append-only `eod_coverage_reports` and `eod_coverage_rows` via a forward-only PostgreSQL migration. A report stores `id`, `created_at` (calculation time), nullable `archive_last_committed_at` (last manifest-backed EOD acquisition), nullable `catalog_id`, archive watermark and `calculation_version`. A row stores report id, `source_symbol_id`, provider, symbol, market segment (`main|newconnect|unclassified`), listing (`active|delisted|unknown`), `in_current_catalog`, `data_class` fixed to `daily_bars`, nullable acquired start/end dates, status and bounded import findings with reason/evidence codes. Unique `(report_id, source_symbol_id, data_class)` prevents duplicates. Source identity is not a canonical instrument id.
 
 ```mermaid
 erDiagram
@@ -57,9 +57,8 @@ Existing tables remain unchanged. Report generations and rows are immutable once
 
 **Range and count meanings:**
 
-- `provider_from/to` and `provider_available` require an evidenced provider availability interval. Existing `source_depth_samples` show observed dates within a bounded sample, not the earliest available date; present them as samples and leave full provider endpoints `null`.
-- `acquired_from/to` come from distinct committed `daily_bar_revisions` session dates backed by valid manifests. When a report exists, `acquired` counts distinct `(source_symbol_id, session_date)` pairs across **all rows matching market, listing, data-class, source and status filters**, not only the current page. A row with unknown provider values still contributes its known acquired observations. A corrected revision does not add a date. When no report exists, the count is `null` under the parent contract.
-- A completed empty manifest proves an archived response, not that every day was a trading day or that history is unavailable. An unfinished chunk is an **import-request gap**. An interval between observed bars is `unverified_date_interval` until trading and listing evidence establishes actual sessions.
+- `acquired_from/to` come from distinct committed `daily_bar_revisions` session dates backed by valid manifests. When a report exists, `acquired` counts distinct `(source_symbol_id, session_date)` pairs across **all rows matching market, listing, data-class, source and status filters**, not only the current page. A corrected revision does not add a date. When no report exists, the count is `null` under the parent contract.
+- A completed empty manifest proves an archived response, not that every day was a trading day or that history is unavailable. An unfinished chunk is an **import-request problem**. Dates between returned observations produce no finding.
 - The report does not assert full historical completeness. Unknown dates/counts use JSON `null`, never zero; zero means a verified empty set.
 
 Rows are keyed by `source_symbol_id`, so repeated ticker text, delisted and unclassified identities remain distinct. A row may be `unclassified` while still showing acquired EOD dates. Old identities outside the current catalog are labeled retained. Evidence references are opaque manifest/catalog ids or safe public documentation links, never raw payloads, credentials or private paths.
@@ -77,10 +76,9 @@ Extend the parent spec's local `GET /api/coverage` contract for **EOD only**. Ex
     "refresh_status": "none-or-fresh-or-stale",
     "refresh_error_code": null, "catalog_id": "uuid-or-null", "archive_watermark": "opaque-or-null",
     "scope": {"market":"all","listing":"all","data_class":"daily_bars","source":"eodhd","status":"all"},
-    "summary": {"provider_available":null,"acquired":2,"gaps":null},
+    "summary": {"acquired":2},
     "rows": [{"source_symbol_id":"stable-id","provider_symbol":"ABC.WAR","market_segment":"unclassified",
       "listing":"active","in_current_catalog":true,"data_class":"daily_bars","source":"eodhd",
-      "provider_from":null,"provider_to":null,
       "acquired_from":"2026-01-02","acquired_to":"2026-11-04","status":"unclassified",
       "findings":[]}]
   },
@@ -88,11 +86,11 @@ Extend the parent spec's local `GET /api/coverage` contract for **EOD only**. Ex
 }
 ```
 
-The example values are illustrative, never seeded data. With no source identity, catalog or committed archive evidence, the API follows the parent contract: no generation is written and the response has `report_id`, `created_at`, `archive_last_committed_at` and watermark `null`, `refresh_status: "none"`, nullable summary counts and no rows. If a source identity or committed archive evidence exists but no bars do, the generated report has acquired `0`, with provider/gaps still `null`. A failed first calculation returns `503 coverage_unavailable` with the existing error envelope. Each row's bounded findings are its import details; no `GET /api/instruments/{id}/coverage` yet because verified canonical links do not exist. The UI maps safe reason codes to Polish. Summary spans the **entire filtered report**, not just one page. Cursor binds report id, normalized filters and last row key; changing report or filters invalidates it. Sort deterministically by market, listing, symbol and source identity. The endpoint never fetches a provider or exposes local paths.
+The example values are illustrative, never seeded data. With no source identity, catalog or committed archive evidence, the API follows the parent contract: no generation is written and the response has `report_id`, `created_at`, `archive_last_committed_at` and watermark `null`, `refresh_status: "none"`, nullable acquired count and no rows. If a source identity or committed archive evidence exists but no bars do, the generated report has acquired `0`. A failed first calculation returns `503 coverage_unavailable` with the existing error envelope. Each row's bounded findings are its import details; no `GET /api/instruments/{id}/coverage` yet because verified canonical links do not exist. The UI maps safe reason codes to Polish. Summary spans the **entire filtered report**, not just one page. Cursor binds report id, normalized filters and last row key; changing report or filters invalidates it. Sort deterministically by market, listing, symbol and source identity. The endpoint never fetches a provider or exposes local paths.
 
 ## 📝 UI/UX
 
-Extend Angular `/data` below catalog/import sections with “Zakres notowań EOD”. Keep the accepted [wireframe](../assets/local-gpw-history/data-coverage-wireframe.md) and its scope; no new prototype is claimed. Header: report calculation timestamp, last committed EOD acquisition timestamp and catalog generation. `refresh_status: "fresh"` means the calculation matches **local evidence**, not that the provider is reachable or that EOD data are current. Combine it with the existing import-job status and update time: after a source outage, the acquired rows remain readable, the older acquisition time stays visible, and a failed/quota-wait source is never labeled fresh. Labeled values show provider-available, acquired and gaps; null renders “nieznane”. Filters cover Main/NewConnect/unclassified, active/delisted/unknown and status. Source and data class are labeled selectors with one supported option each (`EODHD`, `EOD`) until another adapter/class exists; they do not imply other providers are available. Rows show provider and acquired date ranges with keyboard-operable finding/evidence details. Retained identities outside the current catalog carry an explicit label.
+Extend Angular `/data` below catalog/import sections with “Zakres notowań EOD”. Keep the accepted [wireframe](../assets/local-gpw-history/data-coverage-wireframe.md) and its scope; no new prototype is claimed. Header: report calculation timestamp, last committed EOD acquisition timestamp and catalog generation. `refresh_status: "fresh"` means the calculation matches **local evidence**, not that the provider is reachable or that EOD data are current. Combine it with the existing import-job status and update time: after a source outage, the acquired rows remain readable, the older acquisition time stays visible, and a failed/quota-wait source is never labeled fresh. The acquired count is labeled; null renders “nieznane”. Filters cover Main/NewConnect/unclassified, active/delisted/unknown and status. Source and data class are labeled selectors with one supported option each (`EODHD`, `EOD`) until another adapter/class exists; they do not imply other providers are available. Rows show acquired date ranges and import evidence details only when present. Retained identities outside the current catalog carry an explicit label.
 
 States: loading; empty archive; partial/unknown; calculation failure with prior report; API outage with timestamped cached first page; access denied with no data; import `queued/running/quota_wait/paused/failed/done` alongside coverage. The existing job section supplies retry time, last update and safe error mapping; job `done` never changes coverage status. Stale and cached reports cannot use fresh wording. If filters change offline, explain that cached rows reflect previous filters. At narrow widths, controls stack and rows remain readable. Labels, table headers, visible focus and keyboard-operable details carry every status conveyed by color.
 
@@ -105,13 +103,13 @@ No new mockup was made during this spec run because there is no prepared test-en
 | First launch, no catalog, source identity or archive evidence | No report: null id/time/counts, empty rows, unknown scope; no global complete claim. |
 | Active, delisted, unclassified identities; repeated ticker | Separate source-id rows and evidence under market/listing filters. |
 | New catalog replaces old | Retained identities remain browsable; pinned catalog id and membership distinguish versions. |
-| Empty response, weekend, halt or pre-listing date | Archived request and unverified interval, not invented missing session. |
+| Empty response, weekend, halt or pre-listing date | Archived empty response is identified; no date-gap finding is inferred. |
 | Partial import, quota wait or failed job | Only committed revisions count; job status and retry remain visible. |
 | Archive commit races report calculation | One consistent generation; later read refreshes on watermark change. |
 | Refresh fails; API later unavailable | Last-good report keeps original time and stale label; browser cache is bounded and marked cached. |
 | Source outage after an earlier report | Acquired rows remain readable; last committed acquisition time is unchanged, and the failed job is shown separately from report calculation time. |
 | Browser cache corrupt/outdated or `403` | Clear/hide cache; never display it as current or expose rows on access denial. |
-| Provider depth/rights unverified | Provider/expected endpoints stay null; bounded sample remains labeled sample. |
+| Provider depth/rights unverified | Bounded sample remains labeled sample; no full-history claim is made. |
 
 ## 📝 Risks & Impact Review
 

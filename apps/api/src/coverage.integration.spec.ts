@@ -57,8 +57,11 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
       assert.equal(first.data.summary.acquired, 0);
       assert.equal('expected_scope_status' in first.data, false);
       assert.equal('expected' in first.data.summary, false);
+      assert.equal('provider_available' in first.data.summary, false);
+      assert.equal('gaps' in first.data.summary, false);
       assert.equal(first.data.rows.length, 2);
       assert.equal('expected_from' in first.data.rows[0], false);
+      assert.equal('provider_from' in first.data.rows[0], false);
       assert.deepEqual(new Set(first.data.rows.map((row) => row.source_symbol_id)), new Set([activeId, delistedId]));
       assert.equal(first.data.rows.find((row) => row.source_symbol_id === delistedId)?.status, 'unclassified');
       assert.deepEqual(first.data.rows[0].findings, []);
@@ -128,7 +131,7 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
     } finally { await close(); }
   });
 
-test('coverage keeps observed-date intervals and empty archived responses unverified',
+test('coverage omits calendar intervals while retaining empty archived responses',
   { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
     if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
     const { pool, close } = await database();
@@ -165,16 +168,12 @@ test('coverage keeps observed-date intervals and empty archived responses unveri
           ($5, 'eodhd', $2, '2026-01-09', 1, 2, 1, 2, 100, $6, $4)`,
       [randomUUID(), symbolId, 'c'.repeat(64), barsManifestId, randomUUID(), 'd'.repeat(64)]);
 
-      const response = await controller.get({}) as { data: { summary: { acquired: number; gaps: number | null };
+      const response = await controller.get({}) as { data: { summary: { acquired: number };
         rows: { findings: { from_date: string | null; to_date: string | null; reason_code: string;
           evidence_ref: string | null }[] }[] } };
       assert.equal(response.data.summary.acquired, 2);
-      assert.equal(response.data.summary.gaps, null);
       const findings = response.data.rows[0].findings;
-      assert.deepEqual(findings.find((finding) => finding.reason_code === 'unverified_date_interval'), {
-        from_date: '2026-01-06', to_date: '2026-01-08', reason_code: 'unverified_date_interval',
-        evidence_ref: null, evidence_checked_at: null,
-      });
+      assert.equal(findings.some((finding) => finding.reason_code === 'unverified_date_interval'), false);
       const empty = findings.find((finding) => finding.reason_code === 'archived_empty_response');
       assert.equal(empty?.from_date, '2026-01-10');
       assert.equal(empty?.to_date, '2026-01-15');
