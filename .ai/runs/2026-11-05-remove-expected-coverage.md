@@ -15,3 +15,7 @@ Remaining: PR #25 review and QA, then merge and deploy after backup.
 Decision: keep EODHD source identity and explicit unfinished/empty import evidence; hide finding details when there are none.
 Verification: npm tests, Node 24 Docker build, isolated Compose smoke and four PostgreSQL integration tests passed; all temporary resources removed.
 Remaining: independent review and QA, then merge and deploy after a coordinated backup.
+2026-11-05 — Filter retired findings from old report rows served when a refresh fails.
+Decision: preserve immutable historical report data while suppressing obsolete API messages.
+Verification: Node 24 Docker build, npm tests, isolated Compose smoke and five PostgreSQL integration tests passed; temporary resources removed.
+Remaining: independent review and QA, then merge and deploy after a coordinated backup.

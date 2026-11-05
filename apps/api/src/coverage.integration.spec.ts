@@ -180,3 +180,29 @@ test('coverage omits calendar intervals while retaining empty archived responses
       assert.equal(empty?.evidence_ref, emptyManifestId);
     } finally { await close(); }
   });
+
+test('coverage hides retired findings retained in historical report rows',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await database();
+    const controller = new CoverageController({ pool } as Database, new CoverageService({ pool } as Database));
+    const symbolId = randomUUID();
+    const reportId = randomUUID();
+    try {
+      await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
+        market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
+        VALUES ($1, 'eodhd', 'OLD.WAR', 'active', 'unclassified', 'fixture', now(), now())`, [symbolId]);
+      await pool.query(`INSERT INTO eod_coverage_reports(id, input_revision, source_symbol_count)
+        SELECT $1, revision, 1 FROM eod_coverage_input_state WHERE id = 1`, [reportId]);
+      await pool.query(`INSERT INTO eod_coverage_rows(report_id, source_symbol_id, provider, provider_symbol,
+        market_segment, listing, in_current_catalog, acquired_count, status, findings)
+        VALUES ($1, $2, 'eodhd', 'OLD.WAR', 'unclassified', 'active', false, 0, 'unclassified', $3::jsonb)`,
+      [reportId, symbolId, JSON.stringify([
+        { reason_code: 'expected_scope_unknown' },
+        { reason_code: 'unverified_date_interval' },
+        { reason_code: 'archived_empty_response' },
+      ])]);
+      const response = await controller.get({}) as { data: { rows: { findings: { reason_code: string }[] }[] } };
+      assert.deepEqual(response.data.rows[0].findings.map((finding) => finding.reason_code), ['archived_empty_response']);
+    } finally { await close(); }
+  });

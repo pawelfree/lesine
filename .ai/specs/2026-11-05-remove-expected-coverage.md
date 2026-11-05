@@ -8,7 +8,7 @@ The product owner removed the concept of an “expected” market/catalog/sessio
 
 - `/data` shows acquired observations and their dates, import progress and evidenced import problems. It has no “Oczekiwane” or “Dostawca” range column, no provider-availability or confirmed-gap counter, and no notice about unverifiable calendar intervals. Empty finding lists have no disclosure control.
 - `GET /api/coverage` omits expected/provider-availability ranges and counts and never emits a `unverified_date_interval` finding. `GET /api/catalog` omits expected-scope fields. Source identity and the selected EODHD provider remain visible as provenance, not a separate coverage measure.
-- A forward-only migration removes the unused `expected_scope_status` column; earlier applied migration 006 remains intact. Old immutable report generations remain internal historical records. The migration advances the input revision so a fresh generation without expectation findings is built.
+- A forward-only migration removes the unused `expected_scope_status` column; earlier applied migration 006 remains intact. Old immutable report generations remain internal historical records. The migration advances the input revision so a fresh generation without retired findings is built. If an old generation is served during refresh failure, the API filters retired reason codes from its response.
 - The browser cache moves to a new key to discard former response shapes. Source responses, revisions, import jobs and catalog identities are preserved.
 - The optimistic-concurrency parameter `expected_catalog_id` is unrelated to expected data coverage and remains unchanged.
 

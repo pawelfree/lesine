@@ -77,7 +77,11 @@ export class CoverageController {
        FROM eod_coverage_rows WHERE ${where.join(' AND ')}
        ORDER BY market_segment, listing, provider_symbol, source_symbol_id LIMIT $${values.length}`, values,
     );
-    const visible = rows.rows.slice(0, limit);
+    const visible = rows.rows.slice(0, limit).map((row) => ({
+      ...row,
+      findings: (row.findings as { reason_code: string }[]).filter((finding) =>
+        finding.reason_code !== 'expected_scope_unknown' && finding.reason_code !== 'unverified_date_interval'),
+    }));
     const tail = rows.rows.length > limit ? rows.rows[limit - 1] : null;
     const next = tail ? Buffer.from(JSON.stringify({ report: report.id, filters,
       last: [tail.market_segment, tail.listing, tail.provider_symbol, tail.source_symbol_id] })).toString('base64url') : null;
