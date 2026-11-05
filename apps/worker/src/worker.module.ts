@@ -15,7 +15,7 @@ class WorkerProcess implements OnApplicationBootstrap, OnModuleDestroy {
     await this.pool.query('SELECT 1');
     const archive = await verifyArchive(this.pool, true);
     if (archive.legacyChunks) this.logger.warn(`${archive.legacyChunks} legacy completed chunks have no manifest; archive coverage remains unverified`);
-    this.logger.log('Worker ready for import jobs');
+    this.logger.log('Worker ready for catalog refresh and import jobs');
     this.heartbeat = setInterval(() => {
       if (this.working) return;
       this.working = true;

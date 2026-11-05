@@ -48,7 +48,15 @@ export async function referencedFiles(pool: Pool): Promise<FileRef[]> {
      UNION SELECT 'catalog/' || response_sha256 || '.json', response_sha256
      FROM source_depth_samples WHERE response_sha256 IS NOT NULL`,
   );
-  const all = [...manifested, ...legacy.rows, ...catalog.rows];
+  const hasRefreshJobs = await pool.query<{ present: boolean }>(
+    "SELECT to_regclass('public.catalog_refresh_jobs') IS NOT NULL AS present",
+  );
+  const staged = hasRefreshJobs.rows[0].present ? (await pool.query<FileRef>(
+    `SELECT 'catalog/' || sha256 || '.json' AS relative_path, sha256
+     FROM (SELECT active_sha256 AS sha256 FROM catalog_refresh_jobs WHERE active_sha256 IS NOT NULL
+       UNION SELECT delisted_sha256 FROM catalog_refresh_jobs WHERE delisted_sha256 IS NOT NULL) refs`,
+  )).rows : [];
+  const all = [...manifested, ...legacy.rows, ...catalog.rows, ...staged];
   for (const ref of all) checkedPath(responseRoot(), ref);
   return [...new Map(all.map((ref) => [ref.relative_path, ref])).values()]
     .sort((a, b) => a.relative_path.localeCompare(b.relative_path));

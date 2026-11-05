@@ -34,7 +34,7 @@ async function isolatedPlannerPool(): Promise<{ pool: Pool; close: () => Promise
 test('job creation materializes bounded ranges and rejects overlapping active scope',
   { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
     if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
-    const pool = new Pool();
+    const { pool, close } = await isolatedPlannerPool();
     const symbolId = randomUUID();
     const controller = new ImportJobsController({ pool } as Database);
     let jobId: string | null = null;
@@ -88,7 +88,7 @@ test('job creation materializes bounded ranges and rejects overlapping active sc
         await pool.query('DELETE FROM import_jobs WHERE id = $1', [jobId]);
       }
       await pool.query('DELETE FROM source_symbols WHERE id = $1', [symbolId]);
-      await pool.end();
+      await close();
     }
   });
 

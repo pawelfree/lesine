@@ -9,7 +9,7 @@
 
 ## Repository-specific checks
 
-This repository has no application code, tests, or CI yet. When those are added, record stack-specific review rules here and add validation commands to `.ai/agentic.config.json`. An empty validation gate is not a passed test suite.
+The repository has Angular, NestJS, a TypeScript worker and PostgreSQL migrations. Run the configured build gate in `.ai/agentic.config.json`; for changes to background jobs or data publication, run focused database integration tests in isolated Compose. For UI changes, verify loading, failure, confirmation and keyboard behavior in a browser. Remove the temporary Compose project and volumes after verification.
 
 ## Severity
 

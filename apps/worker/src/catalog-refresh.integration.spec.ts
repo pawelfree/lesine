@@ -90,6 +90,13 @@ test('catalog jobs publish complete versions, preserve older identities and resu
         await processCatalogRefresh(pool, fetchPair('FRESH', 'OLD_DELISTED', staleCalls));
         assert.deepEqual(staleCalls, ['active', 'delisted']);
         assert.equal((await pool.query('SELECT status FROM catalog_refresh_jobs WHERE id = $1', [staleId])).rows[0].status, 'done');
+        const preservedHead = (await pool.query("SELECT job_id FROM catalog_head WHERE provider = 'eodhd'")).rows[0].job_id;
+        const malformedId = await queueCatalogRefresh(pool);
+        await processCatalogRefresh(pool, fetchPair('DUPLICATE', 'DUPLICATE', []));
+        assert.deepEqual((await pool.query('SELECT status, error_code FROM catalog_refresh_jobs WHERE id = $1',
+          [malformedId])).rows[0], { status: 'failed', error_code: 'invalid_catalog_payload' });
+        assert.equal((await pool.query("SELECT job_id FROM catalog_head WHERE provider = 'eodhd'")).rows[0].job_id,
+          preservedHead, 'an invalid pair cannot change the published catalog');
       } finally { await pool.end(); }
     } finally {
       if (originalDatabase === undefined) delete process.env.PGDATABASE; else process.env.PGDATABASE = originalDatabase;

@@ -79,7 +79,8 @@ type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_
           @if (result.data.catalog_origin === 'legacy') { <p>Zastany katalog — data publikacji nieznana.</p> }
           @if (result.data.status === 'empty') { <p role="status">Brak pobranych danych. Nie wykonano jeszcze próby odczytu źródła.</p> }
           @if (result.data.status === 'unavailable') { <p role="status">Źródło jest niedostępne lub brak dostępu. Dane nie są oznaczone jako kompletne.</p> }
-          @if (result.data.status === 'partial') { <p role="status">Próbka źródła jest częściowa. Nie wszystkie listy były dostępne.</p> }
+          @if (result.data.status === 'partial' && result.data.catalog_origin === 'legacy') { <p role="status">Zastany katalog nie potwierdza, czy pobrano obie listy WAR.</p> }
+          @if (result.data.status === 'partial' && result.data.catalog_origin !== 'legacy') { <p role="status">Próbka źródła jest częściowa. Nie wszystkie listy były dostępne.</p> }
           @for (sample of result.data.sample; track sample.listing_state) {
             <p>{{ sample.listing_state === 'active' ? 'Aktywne' : 'Wycofane' }}: {{ statusLabel(sample.status) }} @if (sample.error_code) { ({{ errorLabel(sample.error_code) }}) }</p>
           }

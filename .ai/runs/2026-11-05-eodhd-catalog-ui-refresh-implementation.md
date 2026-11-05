@@ -35,3 +35,7 @@ Verification: Angular UI suite passed (6 tests). Remaining: full-stack smoke, re
 2026-11-05 — Mark the owner UI step 2.1 complete in the execution plan.
 Decision: keep browser and Docker evidence in the final verification step.
 Remaining: full-stack smoke, independent review and PR readiness.
+
+2026-11-05 — Extend backup references to staged catalog parts, isolate the existing API planner test and clarify legacy UI/docs.
+Decision: backup verification must retain a validated part even before probe recording or publication; no shared QA database assumptions.
+Verification: full API suite (8) and focused worker archive/catalog suites (3) passed in Compose; browser confirmed cancel and failure preservation. Remaining: final gate, PR review and cleanup.
