@@ -54,6 +54,70 @@ describe('CoverageSection', () => {
     } finally { globalThis.fetch = originalFetch; }
   });
 
+  it('shows the saved first page and labels previous filters when connectivity fails after a filter change', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify(report([{
+      source_symbol_id: 'identity-1', provider_symbol: 'ABC.WAR', market_segment: 'main',
+      listing: 'active', in_current_catalog: true, source: 'eodhd', data_class: 'daily_bars',
+      expected_from: null, expected_to: null, provider_from: null, provider_to: null,
+      acquired_from: null, acquired_to: null, status: 'unknown', findings: [],
+    }])));
+    try {
+      const fixture = TestBed.createComponent(CoverageSection);
+      await fixture.whenStable(); fixture.detectChanges();
+      globalThis.fetch = async () => { throw new Error('offline'); };
+      const listing = fixture.nativeElement.querySelectorAll('.filters select')[3] as HTMLSelectElement;
+      listing.value = 'delisted'; listing.dispatchEvent(new Event('change'));
+      await fixture.whenStable(); fixture.detectChanges();
+      const element = fixture.nativeElement as HTMLElement;
+      expect(listing.value).toBe('delisted');
+      expect(element.textContent).toContain('ABC.WAR');
+      expect(element.textContent).toContain('Widok z pamięci przeglądarki');
+      expect(element.textContent).toContain('Wybrane teraz filtry nie zostały zastosowane');
+      expect(fixture.componentInstance.result()?.data.scope.listing).toBe('all');
+      fixture.destroy();
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it('ignores an old access denial after a newer filtered request succeeds', async () => {
+    const originalFetch = globalThis.fetch;
+    let resolveOld: ((response: Response) => void) | undefined;
+    globalThis.fetch = () => new Promise<Response>((resolve) => { resolveOld = resolve; });
+    try {
+      const fixture = TestBed.createComponent(CoverageSection);
+      const oldRequest = resolveOld;
+      globalThis.fetch = async () => new Response(JSON.stringify(report()));
+      fixture.componentInstance.changeFilter('listing', { target: { value: 'delisted' } } as unknown as Event);
+      await Promise.resolve();
+      oldRequest?.(new Response(null, { status: 403 }));
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.result()?.data.report_id).toBe('report-1');
+      expect(fixture.componentInstance.accessDenied()).toBe(false);
+      expect(localStorage.getItem('lesine-eod-coverage-v1')).toBeTruthy();
+      fixture.destroy();
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it('removes structurally invalid or undated browser cache before rendering', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    try {
+      const incomplete = report() as { data: Record<string, unknown>; page: { next_cursor: null } };
+      delete incomplete.data['summary'];
+      for (const value of [
+        { version: 1, saved_at: new Date().toISOString(), response: incomplete },
+        { version: 1, saved_at: 'invalid-date', response: report() },
+      ]) {
+        localStorage.setItem('lesine-eod-coverage-v1', JSON.stringify(value));
+        const fixture = TestBed.createComponent(CoverageSection);
+        await fixture.whenStable(); fixture.detectChanges();
+        expect(localStorage.getItem('lesine-eod-coverage-v1')).toBeNull();
+        expect(fixture.componentInstance.result()).toBeNull();
+        fixture.destroy();
+      }
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
   it('clears cached market content after local access is denied', async () => {
     const originalFetch = globalThis.fetch;
     localStorage.setItem('lesine-eod-coverage-v1', JSON.stringify({ version: 1,

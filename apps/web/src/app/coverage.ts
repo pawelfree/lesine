@@ -13,6 +13,48 @@ type ResponseBody = { data: Report; page: { next_cursor: string | null } };
 type Cached = { version: 1; saved_at: string; response: ResponseBody };
 const cacheKey = 'lesine-eod-coverage-v1';
 
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function textOrNull(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function countOrNull(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0);
+}
+
+function validResponse(value: unknown): value is ResponseBody {
+  if (!record(value) || !record(value['data']) || !record(value['page'])) return false;
+  const data = value['data'];
+  if (!textOrNull(data['report_id']) || !textOrNull(data['created_at']) ||
+    !textOrNull(data['archive_last_committed_at']) || !textOrNull(data['catalog_id']) ||
+    !['none', 'fresh', 'stale'].includes(String(data['refresh_status'])) ||
+    !textOrNull(data['refresh_error_code']) || typeof data['expected_scope_status'] !== 'string' ||
+    !record(data['scope']) || !record(data['summary']) || !Array.isArray(data['rows']) ||
+    data['rows'].length > 200 || !textOrNull(value['page']['next_cursor'])) return false;
+  const scope = data['scope'];
+  if (!['all', 'main', 'newconnect', 'unclassified'].includes(String(scope['market'])) ||
+    !['all', 'active', 'delisted', 'unknown'].includes(String(scope['listing'])) ||
+    !['all', 'complete', 'partial', 'unavailable', 'unclassified', 'unknown'].includes(String(scope['status'])) ||
+    scope['source'] !== 'eodhd' || scope['data_class'] !== 'daily_bars') return false;
+  const summary = data['summary'];
+  if (!['expected', 'provider_available', 'acquired', 'gaps'].every((key) => countOrNull(summary[key]))) return false;
+  return data['rows'].every((entry: unknown) => {
+    if (!record(entry) || !Array.isArray(entry['findings']) || entry['findings'].length > 100 ||
+      typeof entry['source_symbol_id'] !== 'string' || typeof entry['provider_symbol'] !== 'string' ||
+      typeof entry['market_segment'] !== 'string' || typeof entry['listing'] !== 'string' ||
+      typeof entry['in_current_catalog'] !== 'boolean' || typeof entry['status'] !== 'string') return false;
+    if (!['expected_from', 'expected_to', 'provider_from', 'provider_to', 'acquired_from', 'acquired_to']
+      .every((key) => textOrNull(entry[key]))) return false;
+    return entry['findings'].every((finding: unknown) => record(finding) &&
+      textOrNull(finding['from_date']) && textOrNull(finding['to_date']) &&
+      typeof finding['reason_code'] === 'string' && textOrNull(finding['evidence_ref']) &&
+      textOrNull(finding['evidence_checked_at']));
+  });
+}
+
 @Component({
   selector: 'app-coverage',
   styles: [`
@@ -57,7 +99,7 @@ const cacheKey = 'lesine-eod-coverage-v1';
       @if (loading()) { <p role="status">Wczytywanie zakresu EOD…</p> }
       @if (accessDenied()) { <p role="alert">Brak dostępu do raportu.</p> }
       @else if (error()) { <p role="alert">Nie można pobrać bieżącego raportu. @if (cached()) { Pokazano zapisany wcześniej widok. }</p> }
-      @if (cached()) { <p class="notice" role="status">Widok z pamięci przeglądarki, zapisany {{ cachedAt() }}. Dane mogą być nieaktualne; filtry dotyczą zapisanego widoku.</p> }
+      @if (cached()) { <p class="notice" role="status">Widok z pamięci przeglądarki, zapisany {{ cachedAt() }}. Dane mogą być nieaktualne; filtry dotyczą zapisanego widoku. @if (cachedFiltersDiffer()) { Wybrane teraz filtry nie zostały zastosowane. }</p> }
       @if (result(); as current) {
         @if (current.data.report_id) {
           <p>Raport obliczony: <strong>{{ current.data.created_at }}</strong>. Ostatnie zapisane EOD: <strong>{{ current.data.archive_last_committed_at || 'brak' }}</strong>.</p>
@@ -121,7 +163,12 @@ export class CoverageSection implements OnDestroy {
   listingLabel(value: string): string { return ({ active: 'aktywne', delisted: 'wycofane', unknown: 'nieznane' } as Record<string, string>)[value] ?? 'nieznane'; }
   statusLabel(value: string): string { return ({ unknown: 'nieznany', unclassified: 'niesklasyfikowany', partial: 'częściowy', unavailable: 'niedostępny', complete: 'kompletny' } as Record<string, string>)[value] ?? 'nieznany'; }
   jobLabel(value: string): string { return ({ failed: 'nieudany', quota_wait: 'oczekiwanie na limit', paused: 'wstrzymany' } as Record<string, string>)[value] ?? 'nieznany'; }
-  reasonLabel(value: string): string { return ({ expected_scope_unknown: 'Oczekiwany zakres nie został potwierdzony', import_request_unfinished: 'Żądanie importu nie zostało ukończone', archive_evidence_missing: 'Brak zapisanego dowodu odpowiedzi' } as Record<string, string>)[value] ?? 'Nieznany powód'; }
+  reasonLabel(value: string): string { return ({ expected_scope_unknown: 'Oczekiwany zakres nie został potwierdzony', import_request_unfinished: 'Żądanie importu nie zostało ukończone', archive_evidence_missing: 'Brak zapisanego dowodu odpowiedzi', archived_empty_response: 'Zapisano pustą odpowiedź; sesje w tym przedziale nie są potwierdzone', unverified_date_interval: 'Przedział między obserwacjami nie został zweryfikowany' } as Record<string, string>)[value] ?? 'Nieznany powód'; }
+
+  cachedFiltersDiffer(): boolean {
+    const scope = this.result()?.data.scope;
+    return !!scope && (scope.market !== this.market() || scope.listing !== this.listing() || scope.status !== this.status());
+  }
 
   changeFilter(kind: 'market' | 'listing' | 'status', event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
@@ -134,21 +181,41 @@ export class CoverageSection implements OnDestroy {
   refresh(): void { this.cursor = null; void this.load(); }
   next(): void { this.cursor = this.result()?.page.next_cursor ?? null; if (this.cursor) void this.load(); }
 
-  private restoreCache(): void {
+  private readCache(): Cached | null {
     try {
       const raw = localStorage.getItem(cacheKey);
-      if (!raw || raw.length > 65_536) return;
-      const cached = JSON.parse(raw) as Cached;
-      if (cached.version !== 1 || !cached.response?.data || !Array.isArray(cached.response.data.rows) ||
-        !cached.saved_at || Date.now() - Date.parse(cached.saved_at) > 7 * 86_400_000 ||
-        Date.parse(cached.saved_at) > Date.now()) { localStorage.removeItem(cacheKey); return; }
-      this.result.set(cached.response);
-      this.market.set(cached.response.data.scope?.market ?? 'all');
-      this.listing.set(cached.response.data.scope?.listing ?? 'all');
-      this.status.set(cached.response.data.scope?.status ?? 'all');
-      this.cachedAt.set(cached.saved_at);
-      this.cached.set(true);
-    } catch { try { localStorage.removeItem(cacheKey); } catch { /* storage unavailable */ } }
+      if (!raw) return null;
+      const cached: unknown = raw.length <= 65_536 ? JSON.parse(raw) : null;
+      const savedAt = record(cached) ? cached['saved_at'] : null;
+      const timestamp = typeof savedAt === 'string' ? Date.parse(savedAt) : NaN;
+      if (!record(cached) || cached['version'] !== 1 || !validResponse(cached['response']) ||
+        cached['response'].page.next_cursor !== null || !Number.isFinite(timestamp) ||
+        timestamp > Date.now() || Date.now() - timestamp > 7 * 86_400_000) {
+        localStorage.removeItem(cacheKey);
+        return null;
+      }
+      return cached as Cached;
+    } catch {
+      try { localStorage.removeItem(cacheKey); } catch { /* storage unavailable */ }
+      return null;
+    }
+  }
+
+  private showCached(cached: Cached, alignFilters: boolean): void {
+    this.result.set(cached.response);
+    this.cachedAt.set(cached.saved_at);
+    this.cached.set(true);
+    this.cursor = null;
+    if (alignFilters) {
+      this.market.set(cached.response.data.scope.market);
+      this.listing.set(cached.response.data.scope.listing);
+      this.status.set(cached.response.data.scope.status);
+    }
+  }
+
+  private restoreCache(): void {
+    const cached = this.readCache();
+    if (cached) this.showCached(cached, true);
   }
 
   private saveCache(response: ResponseBody): void {
@@ -161,27 +228,38 @@ export class CoverageSection implements OnDestroy {
 
   private async load(): Promise<void> {
     const sequence = ++this.sequence;
+    const cursor = this.cursor;
     this.loading.set(true);
     this.error.set(false);
     this.accessDenied.set(false);
     try {
       const params = new URLSearchParams({ market: this.market(), listing: this.listing(), status: this.status(), source: 'eodhd', data_class: 'daily_bars' });
-      if (this.cursor) params.set('cursor', this.cursor);
+      if (cursor) params.set('cursor', cursor);
       const response = await fetch(`/api/coverage?${params}`);
-      if (response.status === 400 && this.cursor) { this.cursor = null; void this.load(); return; }
+      if (sequence !== this.sequence) return;
+      if (response.status === 400 && cursor) { this.cursor = null; void this.load(); return; }
       if (response.status === 403) {
         try { localStorage.removeItem(cacheKey); } catch { /* storage unavailable */ }
-        this.result.set(null); this.cached.set(false);
+        this.result.set(null); this.cached.set(false); this.cachedAt.set(null); this.cursor = null;
         this.accessDenied.set(true);
         throw new Error('access_denied');
       }
       if (!response.ok) throw new Error('coverage_unavailable');
-      const body = await response.json() as ResponseBody;
+      const body: unknown = await response.json();
       if (sequence !== this.sequence) return;
+      if (!validResponse(body)) throw new Error('invalid_coverage_response');
       this.result.set(body);
       this.cached.set(false);
-      if (!this.cursor) this.saveCache(body);
-    } catch { if (sequence === this.sequence) this.error.set(true); }
+      this.cachedAt.set(null);
+      if (!cursor) this.saveCache(body);
+    } catch {
+      if (sequence === this.sequence && !this.accessDenied()) {
+        this.error.set(true);
+        const cached = this.readCache();
+        if (cached) this.showCached(cached, false);
+        else { this.result.set(null); this.cached.set(false); this.cachedAt.set(null); this.cursor = null; }
+      }
+    }
     finally { if (sequence === this.sequence) this.loading.set(false); }
   }
 }

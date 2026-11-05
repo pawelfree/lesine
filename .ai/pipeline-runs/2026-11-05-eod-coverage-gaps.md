@@ -1,7 +1,7 @@
 # Implement EOD coverage and gap view
 
 Status: complete
-Source doc: .ai/specs/2026-11-05-eod-coverage-gaps.md
+Source doc: .ai/specs/implemented/2026-11-05-eod-coverage-gaps.md
 Issue: #5
 Spec PR: #22
 

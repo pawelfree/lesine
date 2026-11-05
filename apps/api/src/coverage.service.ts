@@ -63,6 +63,7 @@ export class CoverageService {
            jsonb_build_array(jsonb_build_object('from_date', NULL, 'to_date', NULL,
              'reason_code', 'expected_scope_unknown', 'evidence_ref', NULL,
              'evidence_checked_at', NULL)) || COALESCE(requests.findings, '[]'::jsonb)
+             || COALESCE(intervals.findings, '[]'::jsonb)
          FROM source_symbols s
          CROSS JOIN LATERAL (
            SELECT min(r.session_date) AS first_date, max(r.session_date) AS last_date,
@@ -74,16 +75,41 @@ export class CoverageService {
            SELECT jsonb_agg(jsonb_build_object(
              'from_date', to_char(c.from_date, 'YYYY-MM-DD'),
              'to_date', to_char(c.to_date, 'YYYY-MM-DD'),
-             'reason_code', CASE WHEN c.status = 'done' THEN 'archive_evidence_missing'
+             'reason_code', CASE WHEN c.status = 'done' AND c.manifest_id IS NULL THEN 'archive_evidence_missing'
+               WHEN c.status = 'done' THEN 'archived_empty_response'
                ELSE 'import_request_unfinished' END,
-             'evidence_ref', c.id::text, 'evidence_checked_at', j.updated_at
+             'evidence_ref', CASE WHEN c.status = 'done' AND m.row_count = 0 THEN m.id::text ELSE c.id::text END,
+             'evidence_checked_at', CASE WHEN c.status = 'done' AND m.row_count = 0 THEN m.created_at ELSE j.updated_at END
            ) ORDER BY c.from_date, c.id) AS findings
-           FROM (SELECT c.id, c.from_date, c.to_date, c.status, c.job_id
+           FROM (SELECT c.id, c.from_date, c.to_date, c.status, c.job_id, c.manifest_id
              FROM import_chunks c WHERE c.resource_key = s.id
-               AND (c.status <> 'done' OR c.manifest_id IS NULL)
+               AND (c.status <> 'done' OR c.manifest_id IS NULL OR EXISTS (
+                 SELECT 1 FROM raw_file_manifests m WHERE m.id = c.manifest_id AND m.row_count = 0))
              ORDER BY c.from_date, c.id LIMIT 20) c
            JOIN import_jobs j ON j.id = c.job_id
-         ) requests`,
+           LEFT JOIN raw_file_manifests m ON m.id = c.manifest_id
+         ) requests
+         CROSS JOIN LATERAL (
+           SELECT jsonb_agg(jsonb_build_object(
+             'from_date', to_char(g.from_date, 'YYYY-MM-DD'),
+             'to_date', to_char(g.to_date, 'YYYY-MM-DD'),
+             'reason_code', 'unverified_date_interval',
+             'evidence_ref', NULL, 'evidence_checked_at', NULL
+           ) ORDER BY g.from_date) AS findings
+           FROM (
+             SELECT (observed.previous_date + 1)::date AS from_date,
+               (observed.session_date - 1)::date AS to_date
+             FROM (
+               SELECT dates.session_date,
+                 lag(dates.session_date) OVER (ORDER BY dates.session_date) AS previous_date
+               FROM (SELECT DISTINCT r.session_date FROM daily_bar_revisions r
+                 WHERE r.source_symbol_id = s.id) dates
+             ) observed
+             WHERE observed.previous_date IS NOT NULL
+               AND observed.session_date > observed.previous_date + 1
+             ORDER BY observed.previous_date LIMIT 20
+           ) g
+         ) intervals`,
         [id, state.catalog_id],
       );
       const report = await this.latest(client);

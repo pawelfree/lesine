@@ -1,8 +1,8 @@
 # EOD coverage and gap view implementation
 
-Goals: Implement issue #5 from the accepted EOD coverage specification in a separate PR; verify API and UI behavior without consuming provider quota.
-Specification: [2026-11-05-eod-coverage-gaps.md](../specs/2026-11-05-eod-coverage-gaps.md)
-Status: done
+Goals: Complete issue #5 in PR #23, resolve the five code-review findings, and verify API and UI behavior without consuming provider quota.
+Specification: [2026-11-05-eod-coverage-gaps.md](../specs/implemented/2026-11-05-eod-coverage-gaps.md)
+Status: in-progress
 
 2026-11-05 — Added the phased implementation plan for the EOD coverage API and `/data` view.
 Decision: implement the EOD-only report first, then the UI; use local fixtures and an isolated environment to avoid EODHD calls and disturbing the owner's running stack.
@@ -31,3 +31,7 @@ Verification: focused PostgreSQL integration test passed in a disposable contain
 2026-11-05 — Completed the implementation plan and recorded PR #23 for handoff.
 Decision: retain `needs-qa`; GitHub does not let the PR author submit an approving review, so the clean self-review is a review comment.
 Verification: full build, focused database test, Angular tests and browser evidence passed. Remaining: external QA/review and merge outside this implementation task.
+
+2026-11-05 — Fixed the five PR review findings: dated interval and empty-response evidence, asynchronous UI/cache states, and specification placement/links.
+Decision: missing calendar dates remain explicitly unverified; browser cache is validated and never treated as current evidence. Recorded the verified UI lesson.
+Verification: full Node 24 build and monorepo tests passed, both isolated PostgreSQL coverage tests passed, and an offline-filter Compose/browser smoke test passed; temporary containers, volumes and images were removed. Remaining: push changes and run `om-auto-review-pr 23`.

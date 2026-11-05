@@ -124,3 +124,57 @@ test('coverage distinguishes no report, retained identities, request gaps and ac
       await assert.rejects(() => controller.get({ source: 'unknown' }), (error: unknown) => (error as { status?: number }).status === 400);
     } finally { await close(); }
   });
+
+test('coverage keeps observed-date intervals and empty archived responses unverified',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await database();
+    const service = new CoverageService({ pool } as Database);
+    const controller = new CoverageController({ pool } as Database, service);
+    const symbolId = randomUUID();
+    const jobId = randomUUID();
+    const barsChunkId = randomUUID();
+    const emptyChunkId = randomUUID();
+    const barsManifestId = randomUUID();
+    const emptyManifestId = randomUUID();
+    try {
+      await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
+        market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
+        VALUES ($1, 'eodhd', 'GAP.WAR', 'active', 'main', 'fixture', now(), now())`, [symbolId]);
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode, status) VALUES ($1, 'eodhd', 'main', ARRAY['daily_bars'],
+        '2026-01-05', '2026-01-15', $2, 'incremental', 'done')`, [jobId, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date, status)
+        VALUES ($1, $2, $3, '2026-01-05', '2026-01-09', 'done'),
+          ($4, $2, $3, '2026-01-10', '2026-01-15', 'done')`,
+      [barsChunkId, jobId, symbolId, emptyChunkId]);
+      await pool.query(`INSERT INTO raw_file_manifests(id, chunk_id, relative_path, sha256,
+        provider, data_class, market_scope, min_date, max_date, row_count)
+        VALUES ($1, $2, $3, $4, 'eodhd', 'daily_bars', 'main', '2026-01-05', '2026-01-09', 2),
+          ($5, $6, $7, $8, 'eodhd', 'daily_bars', 'main', NULL, NULL, 0)`,
+      [barsManifestId, barsChunkId, `import/${'a'.repeat(64)}.json`, 'a'.repeat(64),
+        emptyManifestId, emptyChunkId, `import/${'b'.repeat(64)}.json`, 'b'.repeat(64)]);
+      await pool.query(`UPDATE import_chunks SET manifest_id = CASE WHEN id = $1 THEN $2::uuid ELSE $3::uuid END
+        WHERE id IN ($1, $4)`, [barsChunkId, barsManifestId, emptyManifestId, emptyChunkId]);
+      await pool.query(`INSERT INTO daily_bar_revisions(id, provider, source_symbol_id, session_date,
+        open, high, low, close, volume, fingerprint, first_manifest_id)
+        VALUES ($1, 'eodhd', $2, '2026-01-05', 1, 2, 1, 2, 100, $3, $4),
+          ($5, 'eodhd', $2, '2026-01-09', 1, 2, 1, 2, 100, $6, $4)`,
+      [randomUUID(), symbolId, 'c'.repeat(64), barsManifestId, randomUUID(), 'd'.repeat(64)]);
+
+      const response = await controller.get({}) as { data: { summary: { acquired: number; gaps: number | null };
+        rows: { findings: { from_date: string | null; to_date: string | null; reason_code: string;
+          evidence_ref: string | null }[] }[] } };
+      assert.equal(response.data.summary.acquired, 2);
+      assert.equal(response.data.summary.gaps, null);
+      const findings = response.data.rows[0].findings;
+      assert.deepEqual(findings.find((finding) => finding.reason_code === 'unverified_date_interval'), {
+        from_date: '2026-01-06', to_date: '2026-01-08', reason_code: 'unverified_date_interval',
+        evidence_ref: null, evidence_checked_at: null,
+      });
+      const empty = findings.find((finding) => finding.reason_code === 'archived_empty_response');
+      assert.equal(empty?.from_date, '2026-01-10');
+      assert.equal(empty?.to_date, '2026-01-15');
+      assert.equal(empty?.evidence_ref, emptyManifestId);
+    } finally { await close(); }
+  });
