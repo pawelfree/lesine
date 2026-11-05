@@ -231,7 +231,8 @@ async function identityBatch(client: PoolClient, asOf: Date, policy: Availabilit
 
 export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Promise<{
   snapshot_id: string; archive_generation: number; identity_batch_id: string | null;
-  evidence: SnapshotEvidence; evidence_scope: 'local_first_seen'; fingerprint: string; missing: Missing[];
+  identity_evidence: 'owner_attested' | null; evidence: SnapshotEvidence;
+  evidence_scope: 'local_first_seen'; fingerprint: string; missing: Missing[];
 }> {
   const checked = checkedInput(input);
   const client = await pool.connect();
@@ -293,6 +294,7 @@ export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Pr
       'INSERT INTO snapshot_scope_manifests(snapshot_id, manifest_id) VALUES ($1, $2)', [id, manifestId]);
     await client.query('COMMIT');
     return { snapshot_id: id, archive_generation: generation, identity_batch_id: batchId,
+      identity_evidence: batchId ? 'owner_attested' : null,
       evidence, evidence_scope: 'local_first_seen', fingerprint, missing };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -303,7 +305,7 @@ export async function createSnapshot(pool: Pool, input: CreateSnapshotInput): Pr
 export async function readSnapshot(pool: Pool, input: ReadSnapshotInput): Promise<{
   snapshot_id: string; availability_policy: AvailabilityPolicy; evidence: SnapshotEvidence;
   evidence_scope: 'local_first_seen'; archive_generation: number; identity_batch_id: string | null;
-  rows: unknown[]; missing: Missing[];
+  identity_evidence: 'owner_attested' | null; rows: unknown[]; missing: Missing[];
 }> {
   if (!uuidPattern.test(input.snapshot_id) || !['daily_bars', 'dividends', 'splits'].includes(input.data_class) ||
     (input.source_symbol_id !== undefined && !idPattern.test(input.source_symbol_id)) ||
@@ -401,6 +403,7 @@ export async function readSnapshot(pool: Pool, input: ReadSnapshotInput): Promis
     return { snapshot_id: snapshot.id, availability_policy: snapshot.availability_policy,
       evidence: snapshot.evidence, evidence_scope: 'local_first_seen',
       archive_generation: Number(snapshot.archive_generation), identity_batch_id: snapshot.identity_batch_id,
+      identity_evidence: snapshot.identity_batch_id ? 'owner_attested' : null,
       rows, missing: snapshot.missing };
   } catch (error) {
     await client.query('ROLLBACK');

@@ -31,3 +31,8 @@ Remaining: final review, PR metadata and handoff.
 Decision: strict snapshots select the latest batch imported by cutoff and reject same-day date-only identity proof.
 Verification: PostgreSQL tests cover later batch correction and same-day evidence; the assumed policy remains labeled.
 Remaining: final code review and PR publication.
+
+2026-11-05 — Commit labels identity links as owner-attested in snapshot results and documentation.
+Decision: identity provenance is reported separately from local EOD availability.
+Verification: snapshot integration assertion and all three workspace builds passed; Angular required running outside the restricted sandbox.
+Remaining: complete review and publish PR evidence.

@@ -151,6 +151,7 @@ test('strict snapshots pin committed revisions and reject unknown or corrupt pro
       const afterIdentity = await createSnapshot(pool, { ...request, as_of_utc: new Date().toISOString(),
         data_classes: ['daily_bars'] });
       assert.equal(afterIdentity.identity_batch_id, correctedIdentity);
+      assert.equal(afterIdentity.identity_evidence, 'owner_attested');
       assert.equal((await readSnapshot(pool, { snapshot_id: afterIdentity.snapshot_id,
         data_class: 'daily_bars', instrument_id: instrument })).rows.length, 1);
       const sameDayIdentity = randomUUID();
