@@ -39,6 +39,12 @@ function nextUtcDay(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 }
 
+export function freeWindowStart(now: Date = new Date()): string {
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  date.setUTCFullYear(date.getUTCFullYear() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 function retryAfter(header: string | null): Date {
   if (header) {
     const seconds = Number(header);
@@ -251,7 +257,8 @@ async function retain(raw: string, hash: string): Promise<string> {
 }
 
 /** One bounded request per invocation; caller may poll again after the claim is released. */
-export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): Promise<boolean> {
+export async function processImport(pool: Pool, fetcher: typeof fetch = fetch,
+  now: Date = new Date()): Promise<boolean> {
   const lease = await claimJob(pool);
   if (!lease) return false;
   const chunk = await pool.query<{ id: string; resource_key: string; provider_symbol: string;
@@ -264,6 +271,11 @@ export async function processImport(pool: Pool, fetcher: typeof fetch = fetch): 
   );
   const item = chunk.rows[0];
   if (!item) { await changeStatus(pool, lease, 'done', null, null); return true; }
+  if (process.env.LESINE_EODHD_FREE_TIER !== '0' && item.data_class === 'daily_bars' &&
+      item.from_date < freeWindowStart(now)) {
+    await changeStatus(pool, lease, 'failed', 'free_window_expired', null);
+    return true;
+  }
   const token = process.env.EODHD_API_TOKEN;
   if (!token) { await changeStatus(pool, lease, 'paused', 'missing_credential', null); return true; }
   const configured = Number(process.env.LESINE_EODHD_DAILY_BUDGET ?? '2');
