@@ -1,9 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { App } from './app';
-import { DataPage } from './data';
+import { DataPage, recentEodWindow } from './data';
 import { provideRouter } from '@angular/router';
 
 describe('App', () => {
+  it('plans a fresh Free window without requesting the unfinished current day', () => {
+    expect(recentEodWindow(new Date('2026-11-06T06:30:00Z'))).toEqual({
+      from_date: '2025-11-06', to_date: '2026-11-05',
+    });
+  });
   it('shows the application navigation', async () => {
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     const fixture = TestBed.createComponent(App);
