@@ -15,6 +15,14 @@ type CatalogResponse = {
 };
 type ImportJob = { id: string; status: string; completed_chunks: number; total_chunks: number; cursor: string | null;
   error_code: string | null; retry_after_utc: string | null; updated_at: string };
+
+export function recentEodWindow(now: Date): { from_date: string; to_date: string } {
+  const from = new Date(now);
+  const to = new Date(now);
+  from.setUTCFullYear(from.getUTCFullYear() - 1);
+  to.setUTCDate(to.getUTCDate() - 1);
+  return { from_date: from.toISOString().slice(0, 10), to_date: to.toISOString().slice(0, 10) };
+}
 type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_saved: boolean;
   error_code: string | null; retry_after_utc: string | null; updated_at: string };
 
@@ -59,12 +67,12 @@ type CatalogJob = { id: string; status: string; active_saved: boolean; delisted_
           <p>Ostatnia aktualizacja: {{ current.updated_at }}</p>
           @if (current.error_code) { <p>Przyczyna: {{ errorLabel(current.error_code) }}</p> }
           @if (current.retry_after_utc) { <p>Możliwa kolejna próba: {{ current.retry_after_utc }}</p> }
-          @if (current.status === 'paused' || current.status === 'failed') {
+          @if (current.status === 'paused' || (current.status === 'failed' && current.error_code !== 'free_window_expired' && current.error_code !== 'invalid_depth_payload')) {
             <button type="button" (click)="resumeImport()" [disabled]="jobBusy()">Wznów import</button>
           }
         } @else { <p>Nie uruchomiono jeszcze importu notowań.</p> }
-        @if (!job() || job()?.status === 'done') {
-          <button type="button" (click)="startImport()" [disabled]="jobBusy() || !catalog()?.data?.count">Pobierz ostatni rok notowań</button>
+        @if (!job() || job()?.status === 'done' || job()?.status === 'failed') {
+          <button type="button" (click)="startImport()" [disabled]="jobBusy() || !catalog()?.data?.count">{{ job()?.status === 'failed' ? 'Rozpocznij nowy import z aktualnymi datami' : 'Pobierz ostatni rok notowań' }}</button>
         }
         <button type="button" (click)="refreshJob()">Odśwież stan</button>
         @if (jobError()) { <p role="alert">Nie udało się wykonać operacji importu. Sprawdź stan źródła i spróbuj ponownie.</p> }
@@ -149,7 +157,7 @@ export class DataPage implements OnDestroy {
     return ({ available: 'dostępne', unavailable: 'niedostępne', quota_wait: 'oczekiwanie na limit', empty: 'brak rekordów' } as Record<string, string>)[status] ?? 'nieznany';
   }
   errorLabel(code: string): string {
-    return ({ missing_credential: 'brak klucza dostawcy', daily_budget_reached: 'dzienny budżet wyczerpany', provider_rate_limit: 'limit dostawcy', source_unavailable: 'źródło niedostępne', invalid_catalog_payload: 'nieprawidłowa odpowiedź źródła', budget_below_catalog_minimum: 'ustawiony limit nie pozwala pobrać obu list', stale_catalog_part: 'części katalogu są zbyt odległe w czasie' } as Record<string, string>)[code] ?? 'wymaga sprawdzenia';
+    return ({ missing_credential: 'brak klucza dostawcy', daily_budget_reached: 'dzienny budżet wyczerpany', provider_rate_limit: 'limit dostawcy', source_unavailable: 'źródło niedostępne', invalid_catalog_payload: 'nieprawidłowa odpowiedź źródła', invalid_depth_payload: 'nieprawidłowa odpowiedź notowań; sprawdź zakres dat', free_window_expired: 'zakres dat wyszedł poza roczne okno planu Free', budget_below_catalog_minimum: 'ustawiony limit nie pozwala pobrać obu list', stale_catalog_part: 'części katalogu są zbyt odległe w czasie' } as Record<string, string>)[code] ?? 'wymaga sprawdzenia';
   }
   classLabel(dataClass: string): string {
     return ({ eod: 'notowania EOD', dividends: 'dywidendy', splits: 'splity' } as Record<string, string>)[dataClass] ?? 'inne dane';
@@ -272,11 +280,9 @@ export class DataPage implements OnDestroy {
   }
 
   async startImport(): Promise<void> {
-    const to = new Date();
-    const from = new Date(to);
-    from.setUTCFullYear(from.getUTCFullYear() - 1);
+    const window = recentEodWindow(new Date());
     await this.mutateJob('/api/import-jobs', { provider: 'eodhd', market_scope: 'all', data_classes: ['daily_bars'],
-      mode: 'incremental', from_date: from.toISOString().slice(0, 10), to_date: to.toISOString().slice(0, 10) });
+      mode: 'incremental', ...window });
   }
 
   async resumeImport(): Promise<void> {

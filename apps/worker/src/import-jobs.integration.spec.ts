@@ -5,8 +5,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { Pool } from 'pg';
-import { claimJob, commitChunk, processImport } from './import-jobs.js';
+import { claimJob, commitChunk, processImport as processImportActual } from './import-jobs.js';
 import { exportBundle, verifyArchive, verifyBundle } from './archive-files.js';
+
+const processImport = (pool: Pool, fetcher: typeof fetch): Promise<boolean> =>
+  processImportActual(pool, fetcher, new Date('2025-02-28T12:00:00Z'));
 
 async function isolatedImportPool(): Promise<{ pool: Pool; close: () => Promise<void> }> {
   const name = `lesine_import_${randomUUID().replaceAll('-', '')}`;
@@ -250,6 +253,29 @@ test('import checkpoints survive restart and stale leases cannot publish',
         if (value === undefined) delete process.env[key]; else process.env[key] = value;
       }
     }
+  });
+
+test('expired Free window stops before reserving or calling the provider',
+  { skip: process.env.LESINE_RUN_DB_TESTS !== '1' }, async () => {
+    if (process.env.LESINE_TEST_DATABASE !== '1') throw new Error('Requires isolated test database');
+    const { pool, close } = await isolatedImportPool();
+    try {
+      const symbolId = randomUUID();
+      const jobId = randomUUID();
+      await pool.query(`INSERT INTO source_symbols(id, provider, provider_symbol, listing_state,
+        market_segment, identity_evidence_ref, first_seen_at, last_seen_at)
+        VALUES ($1, 'eodhd', 'NEM', 'delisted', 'unclassified', 'fixture', now(), now())`, [symbolId]);
+      await pool.query(`INSERT INTO import_jobs(id, provider, market_scope, data_classes, from_date,
+        to_date, scope_hash, mode) VALUES ($1, 'eodhd', 'all', ARRAY['daily_bars'],
+        '2025-11-05', '2026-11-05', $2, 'incremental')`, [jobId, randomUUID()]);
+      await pool.query(`INSERT INTO import_chunks(id, job_id, resource_key, from_date, to_date)
+        VALUES ($1, $2, $3, '2025-11-05', '2026-11-05')`, [randomUUID(), jobId, symbolId]);
+      await processImportActual(pool, async () => { throw new Error('provider must not be called'); },
+        new Date('2026-11-06T06:30:00Z'));
+      const job = await pool.query('SELECT status, error_code FROM import_jobs WHERE id = $1', [jobId]);
+      assert.deepEqual(job.rows[0], { status: 'failed', error_code: 'free_window_expired' });
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM source_daily_budget')).rows[0].count, 0);
+    } finally { await close(); }
   });
 
 test('action import retains corrections and withdrawals with immutable source manifests',

@@ -47,6 +47,7 @@ services:
     environment:
       <<: *database_environment
       EODHD_API_TOKEN: ${EODHD_API_TOKEN:-}
+      LESINE_EODHD_FREE_TIER: ${LESINE_EODHD_FREE_TIER:-1}
       LESINE_EODHD_DAILY_BUDGET: ${LESINE_EODHD_DAILY_BUDGET:-2}
       LESINE_RESPONSE_DIR: /data/provider-responses
       LESINE_IDENTITY_INPUT_DIR: /data/identity-input
